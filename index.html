@@ -1,0 +1,34 @@
+<!DOCTYPE html><html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Match-3 Game</title>  <!-- CSS -->  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/ui.css">
+</head>
+<body>
+  
+  <!-- SCREENS -->
+  <div id="menuScreen" class="screen active">
+  <h1>Match-3</h1>
+  <button onclick="goTo('map')">Play</button>
+</div><div id="mapScreen" class="screen">
+  <h2>Map</h2>
+  <button onclick="goTo('game')">Level 1</button>
+</div><div id="gameScreen" class="screen">
+  <h2>Game</h2>
+  <div id="board"></div>
+  <button onclick="goTo('map')">Back</button>
+</div>
+  
+  <!-- POPUP -->
+                <div id="popup" class="hidden">
+  <div id="popupContent"></div>
+</div>
+  
+  <!-- JS -->
+  <script src="js/core/storage.js"></script>
+  <script src="js/core/stateManager.js"></script>
+  <script src="js/ui/screens.js"></script>
+  <script src="js/ui/popup.js"></script><script src="js/main.js"></script>
+</body>
+</html>
