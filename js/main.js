@@ -1,4 +1,6 @@
-function init() { console.log('Game started'); updateScreens(); createBoard(); }
+function init() { console.log('Game started'); 
+                 updateScreens(); 
+                 createBoard(); }
 
 function createBoard() { const board = document.getElementById('board'); board.innerHTML = '';
 
