@@ -1,0 +1,7 @@
+ body { margin: 0; font-family: Arial; background: #111; color: #fff; text-align: center; }
+
+.screen { display: none; padding: 20px; }
+
+.screen.active { display: block; }
+
+.hidden { display: none; }
