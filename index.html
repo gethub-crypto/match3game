@@ -11,12 +11,15 @@
 </head>
 <body>
 
+<!-- ================= TOP BAR (ЖИЗНИ) ================= -->
+<div id="topBar">
+  <div id="livesDisplay">❤️ 3</div>
+</div>
+
+
 <!-- ================= MENU ================= -->
 <div id="menuScreen" class="screen active">
   <h1>Match-3</h1>
-
-  <!-- ЖИЗНИ -->
-  <div id="livesDisplay">❤️ 3</div>
 
   <button onclick="goTo('map')">Играть</button>
 </div>
@@ -26,7 +29,6 @@
 <div id="mapScreen" class="screen">
   <h2>Карта уровней</h2>
 
-  <!-- пример уровня -->
   <button onclick="startLevel()">Level 1</button>
 
   <br><br>
@@ -37,9 +39,6 @@
 <!-- ================= GAME ================= -->
 <div id="gameScreen" class="screen">
   <h2>Игра</h2>
-
-  <!-- HUD -->
-  <div id="livesDisplay">❤️</div>
 
   <!-- ИГРОВОЕ ПОЛЕ -->
   <div id="board"></div>
@@ -73,4 +72,4 @@
 <script src="js/main.js"></script>
 
 </body>
-</html>
+  </html>
