@@ -1,39 +1,76 @@
-<!DOCTYPE html><html lang="ru">
+<!DOCTYPE html>
+<html lang="ru">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Match-3 Game</title>  <!-- CSS -->  <link rel="stylesheet" href="css/base.css">
+  <title>Match-3 Game</title>
+
+  <!-- CSS -->
+  <link rel="stylesheet" href="css/base.css">
   <link rel="stylesheet" href="css/ui.css">
 </head>
 <body>
-  
-  <!-- SCREENS -->
-  <div id="menuScreen" class="screen active">
+
+<!-- ================= MENU ================= -->
+<div id="menuScreen" class="screen active">
   <h1>Match-3</h1>
 
-    <div id="board"></div>
-<div id="livesDisplay"></div>
-    
-  <button onclick="goTo('map')">Play</button>
-</div><div id="mapScreen" class="screen">
-  <h2>Map</h2>
+  <!-- ЖИЗНИ -->
+  <div id="livesDisplay">❤️ 3</div>
+
+  <button onclick="goTo('map')">Играть</button>
+</div>
+
+
+<!-- ================= MAP ================= -->
+<div id="mapScreen" class="screen">
+  <h2>Карта уровней</h2>
+
+  <!-- пример уровня -->
   <button onclick="startLevel()">Level 1</button>
 
-</div><div id="gameScreen" class="screen">
-  <h2>Game</h2>
-  <div id="board"></div>
-  <button onclick="goTo('map')">Back</button>
+  <br><br>
+  <button onclick="goTo('menu')">Назад</button>
 </div>
-  
-  <!-- POPUP -->
-                <div id="popup" class="hidden">
+
+
+<!-- ================= GAME ================= -->
+<div id="gameScreen" class="screen">
+  <h2>Игра</h2>
+
+  <!-- HUD -->
+  <div id="livesDisplay">❤️</div>
+
+  <!-- ИГРОВОЕ ПОЛЕ -->
+  <div id="board"></div>
+
+  <br>
+  <button onclick="restartLevel()">Заново</button>
+  <button onclick="goTo('map')">Назад</button>
+</div>
+
+
+<!-- ================= POPUP ================= -->
+<div id="popup" class="hidden">
   <div id="popupContent"></div>
 </div>
- 
-  <!-- JS -->
-  <script src="js/core/storage.js"></script>
-  <script src="js/core/stateManager.js"></script>
-  <script src="js/ui/screens.js"></script>
-  <script src="js/ui/popup.js"></script><script src="js/main.js"></script>
+
+
+<!-- ================= JS ================= -->
+
+<!-- CORE -->
+<script src="js/core/storage.js"></script>
+<script src="js/core/stateManager.js"></script>
+
+<!-- UI -->
+<script src="js/ui/screens.js"></script>
+<script src="js/ui/popup.js"></script>
+
+<!-- SYSTEMS -->
+<script src="js/systems/lives.js"></script>
+
+<!-- MAIN -->
+<script src="js/main.js"></script>
+
 </body>
 </html>
