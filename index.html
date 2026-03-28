@@ -17,7 +17,8 @@
   <button onclick="goTo('map')">Play</button>
 </div><div id="mapScreen" class="screen">
   <h2>Map</h2>
-  <button onclick="goTo('game')">Level 1</button>
+  <button onclick="startLevel()">Level 1</button>
+
 </div><div id="gameScreen" class="screen">
   <h2>Game</h2>
   <div id="board"></div>
@@ -28,7 +29,7 @@
                 <div id="popup" class="hidden">
   <div id="popupContent"></div>
 </div>
-  
+ 
   <!-- JS -->
   <script src="js/core/storage.js"></script>
   <script src="js/core/stateManager.js"></script>
