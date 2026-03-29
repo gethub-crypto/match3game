@@ -1,15 +1,21 @@
+// ================= GLOBAL =================
+let currentLevel = 1;
+let levelData = null;
+
+let movesLeft = 0;
+let score = 0;
+let collected = 0;
+
+
 // ================= INIT =================
-function init() {
+async function init() {
   console.log("Game started");
 
-  // инициализация жизней
   LivesSystem.init();
 
-  // обновление экранов
-  updateScreens();
+  await Levels.load(); // загрузка CSV
 
-  // создаём поле (пока просто визуал)
-  createBoard();
+  updateScreens();
 }
 
 window.onload = init;
@@ -17,15 +23,44 @@ window.onload = init;
 
 // ================= START LEVEL =================
 function startLevel() {
-  // проверка жизней
-  if (!LivesSystem.useLife()) return;
-
-  // если есть жизнь → запускаем игру
   goTo('game');
+  initLevel();
 }
 
 
-// ================= BOARD (8x8) =================
+// ================= INIT LEVEL =================
+function initLevel() {
+  // проверка жизней
+  if (!LivesSystem.useLife()) {
+    goTo('map');
+    return;
+  }
+
+  levelData = Levels.get(currentLevel);
+
+  if (!levelData) {
+    alert("Нет данных уровня");
+    return;
+  }
+
+  console.log("Level:", levelData);
+
+  createBoard();
+  startGameplay();
+}
+
+
+// ================= GAMEPLAY =================
+function startGameplay() {
+  movesLeft = levelData.moves;
+  score = 0;
+  collected = 0;
+
+  updateHUD();
+}
+
+
+// ================= BOARD =================
 function createBoard() {
   const board = document.getElementById('board');
   if (!board) return;
@@ -35,25 +70,88 @@ function createBoard() {
   for (let i = 0; i < 64; i++) {
     const cell = document.createElement('div');
     cell.className = 'cell';
+
+    // тест: клик уменьшает ходы
+    cell.onclick = () => {
+      if (movesLeft <= 0) return;
+
+      movesLeft--;
+
+      // тест логики
+      score += 100;
+
+      if (levelData.type === "collect") {
+        collected++;
+      }
+
+      updateHUD();
+      checkWin();
+    };
+
     board.appendChild(cell);
   }
 }
 
 
-// ================= RESTART LEVEL =================
-function restartLevel() {
-  // тоже проверяем жизни
-  if (!LivesSystem.useLife()) return;
-
-  createBoard();
-  goTo('game');
+// ================= HUD =================
+function updateHUD() {
+  console.log(
+    `Ходы: ${movesLeft}, Очки: ${score}, Собрано: ${collected}/${levelData.target}`
+  );
 }
 
 
-// ================= TEST (можешь удалить потом) =================
-function addCoins(amount) {
-  let coins = Storage.get('coins', 0);
-  coins += amount;
-  Storage.set('coins', coins);
-  console.log("Coins:", coins);
+// ================= CHECK =================
+function checkWin() {
+  if (levelData.type === "score") {
+    if (score >= levelData.target) {
+      winLevel();
+      return;
     }
+  }
+
+  if (levelData.type === "collect") {
+    if (collected >= levelData.target) {
+      winLevel();
+      return;
+    }
+  }
+
+  if (movesLeft <= 0) {
+    loseLevel();
+  }
+}
+
+
+// ================= WIN =================
+function winLevel() {
+  showPopup(`
+    <h2>Победа!</h2>
+    <p>Награда: ${levelData.reward} монет</p>
+    <button onclick="nextLevel()">Далее</button>
+  `);
+}
+
+
+// ================= LOSE =================
+function loseLevel() {
+  showPopup(`
+    <h2>Поражение</h2>
+    <button onclick="restartLevel()">Заново</button>
+  `);
+}
+
+
+// ================= NEXT =================
+function nextLevel() {
+  currentLevel++;
+  hidePopup();
+  initLevel();
+}
+
+
+// ================= RESTART =================
+function restartLevel() {
+  hidePopup();
+  initLevel();
+  }
