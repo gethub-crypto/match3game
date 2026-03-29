@@ -71,7 +71,7 @@ function createBoard() {
     const cell = document.createElement('div');
     cell.className = 'cell';
 
-    // тест: клик уменьшает ходы
+    // ТЕСТ: клик = ход
     cell.onclick = () => {
       if (movesLeft <= 0) return;
 
@@ -95,9 +95,22 @@ function createBoard() {
 
 // ================= HUD =================
 function updateHUD() {
-  console.log(
-    `Ходы: ${movesLeft}, Очки: ${score}, Собрано: ${collected}/${levelData.target}`
-  );
+  const movesEl = document.getElementById('movesDisplay');
+  const targetEl = document.getElementById('targetDisplay');
+
+  if (movesEl) {
+    movesEl.innerText = `Ходы: ${movesLeft}`;
+  }
+
+  if (targetEl) {
+    if (levelData.type === "score") {
+      targetEl.innerText = `Цель: ${score} / ${levelData.target}`;
+    }
+
+    if (levelData.type === "collect") {
+      targetEl.innerText = `Собрано: ${collected} / ${levelData.target}`;
+    }
+  }
 }
 
 
@@ -154,4 +167,4 @@ function nextLevel() {
 function restartLevel() {
   hidePopup();
   initLevel();
-  }
+}
