@@ -64,14 +64,9 @@ function createBoard() {
     board[y] = [];
 
     for (let x = 0; x < SIZE; x++) {
+      const color = randomColor();
 
-      let color;
-
-      // ❗ НЕ создаём сразу совпадения
-      do {
-        color = randomColor();
-        board[y][x] = color;
-      } while (hasMatchAt(x, y));
+      board[y][x] = color;
 
       const cell = document.createElement('div');
       cell.className = 'cell';
@@ -79,33 +74,12 @@ function createBoard() {
       cell.dataset.y = y;
 
       setColor(cell, color);
+
       cell.onclick = () => onCellClick(x, y);
 
       boardEl.appendChild(cell);
     }
   }
-}
-
-
-// ================= ПРОВЕРКА НА СТАРТОВЫЕ МАТЧИ =================
-function hasMatchAt(x, y) {
-  const color = board[y][x];
-
-  // горизонталь
-  if (x >= 2 &&
-      board[y][x - 1] === color &&
-      board[y][x - 2] === color) {
-    return true;
-  }
-
-  // вертикаль
-  if (y >= 2 &&
-      board[y - 1][x] === color &&
-      board[y - 2][x] === color) {
-    return true;
-  }
-
-  return false;
 }
 
 
@@ -136,10 +110,9 @@ function onCellClick(x, y) {
 
   swap(selected, { x, y });
 
-  const matches = checkMatches();
-
-  if (matches.length === 0) {
-    swap(selected, { x, y }); // отмена
+  if (checkMatches().length === 0) {
+    // отмена
+    swap(selected, { x, y });
   } else {
     movesLeft--;
     processMatches();
@@ -238,25 +211,18 @@ function processMatches() {
   }
 
   matches.forEach(m => {
-    const color = board[m.y][m.x];
-
-    // начисление очков
-    score += 50;
-
-    // collect только нужного цвета
-    if (levelData.type === "collect") {
-      if (!levelData.colors || color === levelData.colors) {
-        collected++;
-      }
-    }
-
     board[m.y][m.x] = null;
+    score += 100;
+
+    if (levelData.type === "collect") {
+      collected++;
+    }
   });
 
   drop();
   renderBoard();
 
-  setTimeout(processMatches, 250);
+  setTimeout(processMatches, 300);
 }
 
 
@@ -264,7 +230,6 @@ function processMatches() {
 function drop() {
   for (let x = 0; x < SIZE; x++) {
     for (let y = SIZE - 1; y >= 0; y--) {
-
       if (board[y][x] === null) {
         for (let k = y - 1; k >= 0; k--) {
           if (board[k][x] !== null) {
@@ -303,12 +268,10 @@ function updateHUD() {
 function checkWin() {
   if (levelData.type === "score" && score >= levelData.target) {
     winLevel();
-    return;
   }
 
   if (levelData.type === "collect" && collected >= levelData.target) {
     winLevel();
-    return;
   }
 
   if (movesLeft <= 0) {
