@@ -5,3 +5,19 @@
 .screen.active { display: block; }
 
 .hidden { display: none; }
+
+/* ===== BOARD ===== */
+#board {
+  display: grid;
+  grid-template-columns: repeat(8, 40px);
+  grid-gap: 5px;
+  justify-content: center;
+  margin: 20px auto;
+}
+
+/* ===== CELL ===== */
+.cell {
+  width: 40px;
+  height: 40px;
+  border-radius: 6px;
+}
