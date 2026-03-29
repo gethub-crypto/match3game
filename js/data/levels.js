@@ -1,9 +1,30 @@
-id,moves,type,target,colors,reward,difficulty
-1,20,score,2500,,50,easy
-2,20,collect,12,red,60,easy
-3,22,collect,15,blue,70,easy
-4,25,score,3500,,80,medium
-5,25,collect,18,green,100,medium
-6,28,collect,22,yellow,120,medium
-7,30,score,5000,,150,hard
-8,30,collect,25,purple,180,hard
+const Levels = {
+  data: [],
+
+  async load() {
+    const res = await fetch('levels.csv');
+    const text = await res.text();
+
+    const rows = text.trim().split('\n').slice(1);
+
+    this.data = rows.map(row => {
+      const [id, moves, type, target, colors, reward, difficulty] = row.split(',');
+
+      return {
+        id: +id,
+        moves: +moves,
+        type,
+        target: +target,
+        colors: colors || null,
+        reward: +reward,
+        difficulty
+      };
+    });
+
+    console.log("Levels loaded:", this.data);
+  },
+
+  get(levelId) {
+    return this.data.find(l => l.id === levelId);
+  }
+};
