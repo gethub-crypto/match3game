@@ -24,7 +24,7 @@ window.onload = init;
 
 // ================= START LEVEL =================
 function startLevel() {
-  goTo('game');
+  goTo('gameScreen'); // ✅ ИСПРАВЛЕНО
   initLevel();
 }
 
@@ -32,11 +32,16 @@ function startLevel() {
 // ================= INIT LEVEL =================
 function initLevel() {
   if (!LivesSystem.useLife()) {
-    goTo('map');
+    goTo('mapScreen'); // ✅ ИСПРАВЛЕНО
     return;
   }
 
   levelData = Levels.get(currentLevel);
+
+  if (!levelData) {
+    alert("Ошибка загрузки уровня");
+    return;
+  }
 
   createBoard();
   startGameplay();
@@ -56,17 +61,23 @@ function startGameplay() {
 // ================= BOARD =================
 function createBoard() {
   const boardEl = document.getElementById('board');
-  boardEl.innerHTML = '';
+  if (!boardEl) return;
 
+  boardEl.innerHTML = '';
   board = [];
 
   for (let y = 0; y < SIZE; y++) {
     board[y] = [];
 
     for (let x = 0; x < SIZE; x++) {
-      const color = randomColor();
 
-      board[y][x] = color;
+      let color;
+
+      // ❗ убираем стартовые совпадения
+      do {
+        color = randomColor();
+        board[y][x] = color;
+      } while (hasMatchAt(x, y));
 
       const cell = document.createElement('div');
       cell.className = 'cell';
@@ -74,12 +85,27 @@ function createBoard() {
       cell.dataset.y = y;
 
       setColor(cell, color);
-
       cell.onclick = () => onCellClick(x, y);
 
       boardEl.appendChild(cell);
     }
   }
+}
+
+
+// ================= ПРОВЕРКА СТАРТОВЫХ МАТЧЕЙ =================
+function hasMatchAt(x, y) {
+  const color = board[y][x];
+
+  if (x >= 2 &&
+      board[y][x - 1] === color &&
+      board[y][x - 2] === color) return true;
+
+  if (y >= 2 &&
+      board[y - 1][x] === color &&
+      board[y - 2][x] === color) return true;
+
+  return false;
 }
 
 
@@ -110,8 +136,9 @@ function onCellClick(x, y) {
 
   swap(selected, { x, y });
 
-  if (checkMatches().length === 0) {
-    // отмена
+  const matches = checkMatches();
+
+  if (matches.length === 0) {
     swap(selected, { x, y });
   } else {
     movesLeft--;
@@ -211,18 +238,25 @@ function processMatches() {
   }
 
   matches.forEach(m => {
-    board[m.y][m.x] = null;
-    score += 100;
+    const color = board[m.y][m.x];
 
+    // баланс очков
+    score += 50;
+
+    // collect по цвету
     if (levelData.type === "collect") {
-      collected++;
+      if (!levelData.colors || color === levelData.colors) {
+        collected++;
+      }
     }
+
+    board[m.y][m.x] = null;
   });
 
   drop();
   renderBoard();
 
-  setTimeout(processMatches, 300);
+  setTimeout(processMatches, 250);
 }
 
 
@@ -230,6 +264,7 @@ function processMatches() {
 function drop() {
   for (let x = 0; x < SIZE; x++) {
     for (let y = SIZE - 1; y >= 0; y--) {
+
       if (board[y][x] === null) {
         for (let k = y - 1; k >= 0; k--) {
           if (board[k][x] !== null) {
@@ -250,16 +285,21 @@ function drop() {
 
 // ================= HUD =================
 function updateHUD() {
-  document.getElementById('movesDisplay').innerText = `Ходы: ${movesLeft}`;
+  const movesEl = document.getElementById('movesDisplay');
+  const targetEl = document.getElementById('targetDisplay');
 
-  if (levelData.type === "score") {
-    document.getElementById('targetDisplay').innerText =
-      `Цель: ${score} / ${levelData.target}`;
+  if (movesEl) {
+    movesEl.innerText = `Ходы: ${movesLeft}`;
   }
 
-  if (levelData.type === "collect") {
-    document.getElementById('targetDisplay').innerText =
-      `Собрано: ${collected} / ${levelData.target}`;
+  if (targetEl) {
+    if (levelData.type === "score") {
+      targetEl.innerText = `Цель: ${score} / ${levelData.target}`;
+    }
+
+    if (levelData.type === "collect") {
+      targetEl.innerText = `Собрано: ${collected} / ${levelData.target}`;
+    }
   }
 }
 
@@ -268,10 +308,12 @@ function updateHUD() {
 function checkWin() {
   if (levelData.type === "score" && score >= levelData.target) {
     winLevel();
+    return;
   }
 
   if (levelData.type === "collect" && collected >= levelData.target) {
     winLevel();
+    return;
   }
 
   if (movesLeft <= 0) {
