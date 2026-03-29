@@ -1,3 +1,5 @@
+
+// ================= GLOBAL =================
 let currentLevel = 1;
 let levelData = null;
 
@@ -8,9 +10,11 @@ let collected = 0;
 
 // ================= INIT =================
 async function init() {
+  console.log("Game started");
 
   LivesSystem.init();
-  await Levels.load();
+
+  await Levels.load(); // загрузка CSV
 
   updateScreens();
 }
@@ -18,31 +22,37 @@ async function init() {
 window.onload = init;
 
 
-// ================= START =================
+// ================= START LEVEL =================
 function startLevel() {
-
-  goTo('gameScreen');
+  goTo('game');
   initLevel();
 }
 
 
-// ================= LEVEL =================
+// ================= INIT LEVEL =================
 function initLevel() {
-
+  // проверка жизней
   if (!LivesSystem.useLife()) {
-    goTo('mapScreen');
+    goTo('map');
     return;
   }
 
   levelData = Levels.get(currentLevel);
 
   if (!levelData) {
-    alert("Ошибка уровня");
+    alert("Нет данных уровня");
     return;
   }
 
-  createBoard();
+  console.log("Level:", levelData);
 
+  createBoard();
+  startGameplay();
+}
+
+
+// ================= GAMEPLAY =================
+function startGameplay() {
   movesLeft = levelData.moves;
   score = 0;
   collected = 0;
@@ -51,35 +61,74 @@ function initLevel() {
 }
 
 
-// ================= HUD =================
-function updateHUD() {
+// ================= BOARD =================
+function createBoard() {
+  const board = document.getElementById('board');
+  if (!board) return;
 
-  document.getElementById('movesDisplay').innerText =
-    `Ходы: ${movesLeft}`;
+  board.innerHTML = '';
 
-  if (levelData.type === "score") {
-    document.getElementById('targetDisplay').innerText =
-      `Цель: ${score} / ${levelData.target}`;
-  }
+  for (let i = 0; i < 64; i++) {
+    const cell = document.createElement('div');
+    cell.className = 'cell';
 
-  if (levelData.type === "collect") {
-    document.getElementById('targetDisplay').innerText =
-      `Собрано: ${collected} / ${levelData.target}`;
+    // ТЕСТ: клик = ход
+    cell.onclick = () => {
+      if (movesLeft <= 0) return;
+
+      movesLeft--;
+
+      // тест логики
+      score += 100;
+
+      if (levelData.type === "collect") {
+        collected++;
+      }
+
+      updateHUD();
+      checkWin();
+    };
+
+    board.appendChild(cell);
   }
 }
 
 
-// ================= WIN =================
-function checkWin() {
+// ================= HUD =================
+function updateHUD() {
+  const movesEl = document.getElementById('movesDisplay');
+  const targetEl = document.getElementById('targetDisplay');
 
-  if (levelData.type === "score" &&
-      score >= levelData.target) {
-    winLevel();
+  if (movesEl) {
+    movesEl.innerText = `Ходы: ${movesLeft}`;
   }
 
-  if (levelData.type === "collect" &&
-      collected >= levelData.target) {
-    winLevel();
+  if (targetEl) {
+    if (levelData.type === "score") {
+      targetEl.innerText = `Цель: ${score} / ${levelData.target}`;
+    }
+
+    if (levelData.type === "collect") {
+      targetEl.innerText = `Собрано: ${collected} / ${levelData.target}`;
+    }
+  }
+}
+
+
+// ================= CHECK =================
+function checkWin() {
+  if (levelData.type === "score") {
+    if (score >= levelData.target) {
+      winLevel();
+      return;
+    }
+  }
+
+  if (levelData.type === "collect") {
+    if (collected >= levelData.target) {
+      winLevel();
+      return;
+    }
   }
 
   if (movesLeft <= 0) {
@@ -88,35 +137,42 @@ function checkWin() {
 }
 
 
-// ================= RESULT =================
+// ================= WIN =================
 function winLevel() {
-
   showPopup(`
     <h2>Победа!</h2>
+    <p>Награда: ${levelData.reward} монет</p>
     <button onclick="nextLevel()">Далее</button>
   `);
 }
 
-function loseLevel() {
 
+// ================= LOSE =================
+function loseLevel() {
   showPopup(`
     <h2>Поражение</h2>
     <button onclick="restartLevel()">Заново</button>
   `);
 }
 
+
+// ================= NEXT =================
 function nextLevel() {
-
   currentLevel++;
-
   hidePopup();
-
   initLevel();
 }
 
+
+// ================= RESTART =================
 function restartLevel() {
-
   hidePopup();
-
   initLevel();
-      }
+}
+
+
+
+
+
+
+
