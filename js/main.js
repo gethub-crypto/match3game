@@ -335,4 +335,4 @@ function nextLevel() {
 function restartLevel() {
   hidePopup();
   initLevel();
-    }
+}
