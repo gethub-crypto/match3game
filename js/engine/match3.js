@@ -1,244 +1,359 @@
 // ================= SETTINGS =================
+
 const SIZE = 8;
-const COLORS = ["red", "blue", "green", "yellow", "purple"];
+const COLORS = ["red","blue","green","yellow","purple"];
 
 let board = [];
 let selected = null;
 
 
 // ================= CREATE BOARD =================
-function createBoard() {
-  const boardEl = document.getElementById('board');
-  if (!boardEl) return;
 
-  boardEl.innerHTML = '';
-  board = [];
+function createBoard(){
 
-  for (let y = 0; y < SIZE; y++) {
-    board[y] = [];
+const boardEl = document.getElementById("board");
 
-    for (let x = 0; x < SIZE; x++) {
+if(!boardEl) return;
 
-      let color;
+boardEl.innerHTML = "";
 
-      do {
-        color = randomColor();
-        board[y][x] = color;
-      } while (hasMatchAt(x, y));
+board = [];
 
-      const cell = document.createElement('div');
-      cell.className = 'cell';
-      cell.dataset.x = x;
-      cell.dataset.y = y;
 
-      setColor(cell, color);
-      cell.onclick = () => onCellClick(x, y);
+for(let y=0;y<SIZE;y++){
 
-      boardEl.appendChild(cell);
-    }
-  }
+board[y]=[];
+
+for(let x=0;x<SIZE;x++){
+
+let color;
+
+do{
+
+color=randomColor();
+board[y][x]=color;
+
+}
+while(hasMatchAt(x,y));
+
+
+const cell=document.createElement("div");
+
+cell.className="cell";
+cell.dataset.x=x;
+cell.dataset.y=y;
+
+setColor(cell,color);
+
+cell.onclick=()=>onCellClick(x,y);
+
+boardEl.appendChild(cell);
+
+}
+
+}
+
 }
 
 
-// ================= RANDOM =================
-function randomColor() {
-  return COLORS[Math.floor(Math.random() * COLORS.length)];
+
+// ================= RANDOM COLOR =================
+
+function randomColor(){
+
+return COLORS[Math.floor(Math.random()*COLORS.length)];
+
 }
 
-function setColor(cell, color) {
-  cell.style.background = color;
+function setColor(cell,color){
+
+cell.style.background=color;
+
 }
+
 
 
 // ================= CLICK =================
-function onCellClick(x, y) {
 
-  if (!selected) {
-    selected = { x, y };
-    return;
-  }
+function onCellClick(x,y){
 
-  const dx = Math.abs(selected.x - x);
-  const dy = Math.abs(selected.y - y);
+if(!selected){
 
-  if (dx + dy !== 1) {
-    selected = null;
-    return;
-  }
+selected={x,y};
+return;
 
-  swap(selected, { x, y });
-
-  const matches = checkMatches();
-
-  if (matches.length === 0) {
-    swap(selected, { x, y });
-  } else {
-    movesLeft--;
-    processMatches();
-  }
-
-  selected = null;
-  updateHUD();
 }
+
+const dx=Math.abs(selected.x-x);
+const dy=Math.abs(selected.y-y);
+
+if(dx+dy!==1){
+
+selected=null;
+return;
+
+}
+
+
+swap(selected,{x,y});
+
+const matches=checkMatches();
+
+if(matches.length===0){
+
+swap(selected,{x,y});
+
+}else{
+
+movesLeft--;
+
+processMatches();
+
+}
+
+selected=null;
+
+updateHUD();
+
+}
+
 
 
 // ================= SWAP =================
-function swap(a, b) {
-  const temp = board[a.y][a.x];
-  board[a.y][a.x] = board[b.y][b.x];
-  board[b.y][b.x] = temp;
 
-  renderBoard();
+function swap(a,b){
+
+const temp=board[a.y][a.x];
+
+board[a.y][a.x]=board[b.y][b.x];
+board[b.y][b.x]=temp;
+
+renderBoard();
+
 }
+
 
 
 // ================= RENDER =================
-function renderBoard() {
-  const cells = document.querySelectorAll('.cell');
 
-  cells.forEach(cell => {
-    const x = cell.dataset.x;
-    const y = cell.dataset.y;
-    setColor(cell, board[y][x]);
-  });
+function renderBoard(){
+
+const cells=document.querySelectorAll(".cell");
+
+cells.forEach(cell=>{
+
+const x=cell.dataset.x;
+const y=cell.dataset.y;
+
+setColor(cell,board[y][x]);
+
+});
+
 }
 
 
-// ================= START MATCH CHECK =================
-function hasMatchAt(x, y) {
 
-  const color = board[y][x];
+// ================= NO START MATCH =================
 
-  if (x >= 2 &&
-      board[y][x - 1] === color &&
-      board[y][x - 2] === color) return true;
+function hasMatchAt(x,y){
 
-  if (y >= 2 &&
-      board[y - 1][x] === color &&
-      board[y - 2][x] === color) return true;
+const color=board[y][x];
 
-  return false;
+
+if(x>=2 && board[y][x-1]===color && board[y][x-2]===color)
+return true;
+
+if(y>=2 && board[y-1][x]===color && board[y-2][x]===color)
+return true;
+
+return false;
+
 }
 
 
-// ================= MATCHES =================
-function checkMatches() {
 
-  let matches = [];
+// ================= FIND MATCHES =================
 
-  for (let y = 0; y < SIZE; y++) {
+function checkMatches(){
 
-    let count = 1;
-
-    for (let x = 1; x < SIZE; x++) {
-
-      if (board[y][x] === board[y][x - 1]) {
-        count++;
-      } else {
-
-        if (count >= 3) {
-          for (let i = 0; i < count; i++) {
-            matches.push({ x: x - 1 - i, y });
-          }
-        }
-
-        count = 1;
-      }
-    }
-
-    if (count >= 3) {
-      for (let i = 0; i < count; i++) {
-        matches.push({ x: SIZE - 1 - i, y });
-      }
-    }
-  }
+let matches=[];
 
 
-  for (let x = 0; x < SIZE; x++) {
+// горизонталь
 
-    let count = 1;
+for(let y=0;y<SIZE;y++){
 
-    for (let y = 1; y < SIZE; y++) {
+let count=1;
 
-      if (board[y][x] === board[y - 1][x]) {
-        count++;
-      } else {
+for(let x=1;x<SIZE;x++){
 
-        if (count >= 3) {
-          for (let i = 0; i < count; i++) {
-            matches.push({ x, y: y - 1 - i });
-          }
-        }
+if(board[y][x]===board[y][x-1]){
 
-        count = 1;
-      }
-    }
+count++;
 
-    if (count >= 3) {
-      for (let i = 0; i < count; i++) {
-        matches.push({ x, y: SIZE - 1 - i });
-      }
-    }
-  }
+}else{
 
-  return matches;
+if(count>=3){
+
+for(let i=0;i<count;i++){
+
+matches.push({x:x-1-i,y});
+
+}
+
+}
+
+count=1;
+
+}
+
 }
 
 
-// ================= PROCESS =================
-function processMatches() {
+if(count>=3){
 
-  let matches = checkMatches();
+for(let i=0;i<count;i++){
 
-  if (matches.length === 0) {
-    checkWin();
-    return;
-  }
+matches.push({x:SIZE-1-i,y});
 
-  matches.forEach(m => {
-
-    const color = board[m.y][m.x];
-
-    score += 50;
-
-    if (levelData.type === "collect") {
-      if (!levelData.colors || color === levelData.colors) {
-        collected++;
-      }
-    }
-
-    board[m.y][m.x] = null;
-  });
-
-  drop();
-  renderBoard();
-
-  setTimeout(processMatches, 250);
 }
+
+}
+
+}
+
+
+// вертикаль
+
+for(let x=0;x<SIZE;x++){
+
+let count=1;
+
+for(let y=1;y<SIZE;y++){
+
+if(board[y][x]===board[y-1][x]){
+
+count++;
+
+}else{
+
+if(count>=3){
+
+for(let i=0;i<count;i++){
+
+matches.push({x,y:y-1-i});
+
+}
+
+}
+
+count=1;
+
+}
+
+}
+
+
+if(count>=3){
+
+for(let i=0;i<count;i++){
+
+matches.push({x,y:SIZE-1-i});
+
+}
+
+}
+
+}
+
+return matches;
+
+}
+
+
+
+// ================= PROCESS MATCHES =================
+
+function processMatches(){
+
+const matches=checkMatches();
+
+if(matches.length===0){
+
+checkWin();
+return;
+
+}
+
+
+matches.forEach(m=>{
+
+const color=board[m.y][m.x];
+
+score+=50;
+
+
+if(levelData.type==="collect"){
+
+if(!levelData.colors || color===levelData.colors){
+
+collected++;
+
+}
+
+}
+
+
+board[m.y][m.x]=null;
+
+});
+
+
+drop();
+
+renderBoard();
+
+
+setTimeout(processMatches,250);
+
+}
+
 
 
 // ================= DROP =================
-function drop() {
 
-  for (let x = 0; x < SIZE; x++) {
+function drop(){
 
-    for (let y = SIZE - 1; y >= 0; y--) {
+for(let x=0;x<SIZE;x++){
 
-      if (board[y][x] === null) {
+for(let y=SIZE-1;y>=0;y--){
 
-        for (let k = y - 1; k >= 0; k--) {
+if(board[y][x]===null){
 
-          if (board[k][x] !== null) {
-            board[y][x] = board[k][x];
-            board[k][x] = null;
-            break;
-          }
-        }
-      }
+for(let k=y-1;k>=0;k--){
 
-      if (board[y][x] === null) {
-        board[y][x] = randomColor();
-      }
-    }
-  }
+if(board[k][x]!==null){
+
+board[y][x]=board[k][x];
+board[k][x]=null;
+
+break;
+
 }
+
+}
+
+}
+
+
+if(board[y][x]===null){
+
+board[y][x]=randomColor();
+
+}
+
+}
+
+}
+
+   }
