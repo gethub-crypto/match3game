@@ -319,10 +319,11 @@ function checkWin() {
 
 
 // ================= WIN / LOSE =================
-//function winLevel() {
- // showPopup(`<h2>Победа!</h2><button onclick="nextLevel()">Далее</button>`);
-//} 
 function winLevel() {
+
+  // начисляем монеты
+  addCoins(levelData.reward);
+
   showPopup(`
     <h2>Победа!</h2>
     <p>Награда: ${levelData.reward} монет</p>
