@@ -25,3 +25,29 @@
   margin: 10px;
   font-size: 18px;
 }
+
+/* ===== TOP BAR ===== */
+
+#topBar {
+  position: fixed;
+  top: 10px;
+  left: 10px;
+  right: 10px;
+
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+
+  z-index: 1000;
+}
+
+/* жизни слева */
+#livesDisplay {
+  font-size: 18px;
+}
+
+/* монеты справа */
+#coinsDisplay {
+  font-size: 18px;
+  font-weight: bold;
+}
