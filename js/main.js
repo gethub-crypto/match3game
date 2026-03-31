@@ -18,6 +18,7 @@ async function init() {
   LivesSystem.init();
   await Levels.load();
   updateScreens();
+  updateCoinsUI();
 }
 window.onload = init;
 
