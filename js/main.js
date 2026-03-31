@@ -343,3 +343,12 @@ function restartLevel() {
   hidePopup();
   initLevel();
 }
+
+
+ //----- COIN--- 
+function updateCoinsUI() {
+  const el = document.getElementById("coinsDisplay");
+  if (el) {
+    el.innerText = "💰 " + getCoins();
+  }
+}
