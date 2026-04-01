@@ -1,4 +1,4 @@
- button { padding: 10px 20px; margin: 10px; font-size: 18px; }
+hi button { padding: 10px 20px; margin: 10px; font-size: 18px; }
 
 #board { width: 320px; height: 320px; margin: 20px auto; display: grid; grid-template-columns: repeat(8, 1fr); grid-template-rows: repeat(8, 1fr); gap: 2px; }
 
@@ -50,4 +50,11 @@
 #coinsDisplay {
   font-size: 18px;
   font-weight: bold;
+}
+
+
+.cell.selected{
+outline:3px solid white;
+transform:scale(1.1);
+z-index:2;
 }
