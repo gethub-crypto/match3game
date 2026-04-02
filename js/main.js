@@ -7,6 +7,9 @@ let movesLeft = 0
 let score = 0
 let collected = 0
 
+let levelFinished = false
+let gameLocked = false
+
 const SIZE = 8
 const COLORS = ["red","blue","green","yellow","purple"]
 
@@ -44,6 +47,9 @@ initLevel()
 // ================= INIT LEVEL =================
 
 function initLevel(){
+
+levelFinished = false
+gameLocked = false
 
 levelData = Levels.get(currentLevel)
 
@@ -122,14 +128,13 @@ return COLORS[Math.floor(Math.random()*COLORS.length)]
 }
 
 
-// ================= START MATCH CHECK =================
+// ================= CHECK START MATCH =================
 
 function hasMatchAt(x,y){
 
 const color = board[y][x]
 
 if(x>=2 && board[y][x-1]===color && board[y][x-2]===color) return true
-
 if(y>=2 && board[y-1][x]===color && board[y-2][x]===color) return true
 
 return false
@@ -164,6 +169,8 @@ highlightCell(x,y)
 })
 
 cell.addEventListener("touchend",e=>{
+
+if(gameLocked) return
 
 const endX = e.changedTouches[0].clientX
 const endY = e.changedTouches[0].clientY
@@ -222,6 +229,7 @@ cells[yy][xx].classList.remove("selected")
 
 function onCellClick(x,y){
 
+if(gameLocked) return
 if(x<0||x>=SIZE||y<0||y>=SIZE) return
 
 if(!selected){
@@ -285,13 +293,9 @@ renderBoard()
 function renderBoard(){
 
 for(let y=0;y<SIZE;y++){
-
 for(let x=0;x<SIZE;x++){
-
 setColor(cells[y][x],board[y][x])
-
 }
-
 }
 
 }
@@ -302,7 +306,6 @@ setColor(cells[y][x],board[y][x])
 function checkMatches(){
 
 let matches=[]
-
 
 // горизонталь
 for(let y=0;y<SIZE;y++){
@@ -318,11 +321,9 @@ count++
 }else{
 
 if(count>=3){
-
 for(let i=0;i<count;i++){
 matches.push({x:x-1-i,y})
 }
-
 }
 
 count=1
@@ -332,11 +333,9 @@ count=1
 }
 
 if(count>=3){
-
 for(let i=0;i<count;i++){
 matches.push({x:SIZE-1-i,y})
 }
-
 }
 
 }
@@ -356,11 +355,9 @@ count++
 }else{
 
 if(count>=3){
-
 for(let i=0;i<count;i++){
 matches.push({x,y:y-1-i})
 }
-
 }
 
 count=1
@@ -370,11 +367,9 @@ count=1
 }
 
 if(count>=3){
-
 for(let i=0;i<count;i++){
 matches.push({x,y:SIZE-1-i})
 }
-
 }
 
 }
@@ -393,6 +388,11 @@ let matches=checkMatches()
 if(matches.length===0){
 
 checkWin()
+
+if(!hasPossibleMoves()){
+shuffleBoard()
+}
+
 return
 
 }
@@ -416,7 +416,6 @@ board[m.y][m.x]=null
 })
 
 drop()
-
 renderBoard()
 
 setTimeout(processMatches,200)
@@ -498,6 +497,67 @@ requestAnimationFrame(frame)
 }
 
 
+// ================= POSSIBLE MOVES =================
+
+function hasPossibleMoves(){
+
+for(let y=0;y<SIZE;y++){
+for(let x=0;x<SIZE;x++){
+
+if(x<SIZE-1){
+
+swapTest(x,y,x+1,y)
+if(checkMatches().length>0){
+swapTest(x,y,x+1,y)
+return true
+}
+swapTest(x,y,x+1,y)
+
+}
+
+if(y<SIZE-1){
+
+swapTest(x,y,x,y+1)
+if(checkMatches().length>0){
+swapTest(x,y,x,y+1)
+return true
+}
+swapTest(x,y,x,y+1)
+
+}
+
+}
+}
+
+return false
+
+}
+
+function swapTest(x1,y1,x2,y2){
+
+const temp=board[y1][x1]
+
+board[y1][x1]=board[y2][x2]
+board[y2][x2]=temp
+
+}
+
+
+// ================= SHUFFLE =================
+
+function shuffleBoard(){
+
+for(let y=0;y<SIZE;y++){
+for(let x=0;x<SIZE;x++){
+board[y][x]=randomColor()
+}
+}
+
+renderBoard()
+
+}
+
+
 // ================= HUD =================
 
 function updateHUD(){
@@ -505,15 +565,11 @@ function updateHUD(){
 document.getElementById("movesDisplay").innerText=`Ходы: ${movesLeft}`
 
 if(levelData.type==="score"){
-
 document.getElementById("targetDisplay").innerText=`Цель: ${score} / ${levelData.target}`
-
 }
 
 if(levelData.type==="collect"){
-
 document.getElementById("targetDisplay").innerText=`Собрано: ${collected} / ${levelData.target}`
-
 }
 
 }
@@ -523,24 +579,20 @@ document.getElementById("targetDisplay").innerText=`Собрано: ${collected}
 
 function checkWin(){
 
-if(levelData.type==="score" && score>=levelData.target){
+if(levelFinished) return
 
+if(levelData.type==="score" && score>=levelData.target){
 winLevel()
 return
-
 }
 
 if(levelData.type==="collect" && collected>=levelData.target){
-
 winLevel()
 return
-
 }
 
 if(movesLeft<=0){
-
 loseLevel()
-
 }
 
 }
@@ -549,6 +601,11 @@ loseLevel()
 // ================= WIN =================
 
 function winLevel(){
+
+if(levelFinished) return
+
+levelFinished = true
+gameLocked = true
 
 addCoins(levelData.reward)
 
@@ -564,6 +621,11 @@ showPopup(`
 // ================= LOSE =================
 
 function loseLevel(){
+
+if(levelFinished) return
+
+levelFinished = true
+gameLocked = true
 
 LivesSystem.useLife()
 
@@ -603,9 +665,7 @@ function updateCoinsUI(){
 const el=document.getElementById("coinsDisplay")
 
 if(el){
-
 el.innerText="💰 "+getCoins()
-
 }
 
-  }
+}
