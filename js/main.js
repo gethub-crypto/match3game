@@ -5,7 +5,6 @@ let levelData = null
 
 let movesLeft = 0
 let score = 0
-let collected = 0
 
 let levelFinished = false
 let gameLocked = false
@@ -21,6 +20,7 @@ let cells = []
 let selected = null
 
 
+
 // ================= INIT =================
 
 async function init(){
@@ -29,7 +29,6 @@ LivesSystem.init()
 
 await Levels.load()
 
-updateScreens()
 updateCoinsUI()
 
 }
@@ -66,24 +65,13 @@ levelData = Levels.get(currentLevel)
 
 createBoard()
 
-startGameplay()
-
-startHintTimer()
-
-}
-
-
-
-// ================= GAMEPLAY =================
-
-function startGameplay(){
-
 movesLeft = levelData.moves
 
 score = 0
-collected = 0
 
 updateHUD()
+
+startHintTimer()
 
 }
 
@@ -138,7 +126,7 @@ cells[y][x] = cell
 
 
 
-// ================= RANDOM =================
+// ================= RANDOM COLOR =================
 
 function randomColor(){
 
@@ -164,7 +152,7 @@ return false
 
 
 
-// ================= COLOR =================
+// ================= CELL COLOR =================
 
 function setColor(cell,color){
 
@@ -238,11 +226,9 @@ onCellClick(targetX,targetY)
 
 
 
-// ================= HIGHLIGHT =================
+// ================= SELECT CELL =================
 
 function highlightCell(x,y){
-
-clearHints()
 
 for(let yy=0;yy<SIZE;yy++){
 for(let xx=0;xx<SIZE;xx++){
@@ -296,7 +282,7 @@ return
 
 swap(selected,{x,y})
 
-const matches=checkMatches()
+const matches = MatchDetection.getMatches(board)
 
 if(matches.length===0){
 
@@ -351,89 +337,11 @@ setColor(cells[y][x],board[y][x])
 
 
 
-// ================= MATCH CHECK =================
-
-function checkMatches(){
-
-let matches=[]
-
-for(let y=0;y<SIZE;y++){
-
-let count=1
-
-for(let x=1;x<SIZE;x++){
-
-if(board[y][x]===board[y][x-1]){
-
-count++
-
-}else{
-
-if(count>=3){
-for(let i=0;i<count;i++){
-matches.push({x:x-1-i,y})
-}
-}
-
-count=1
-
-}
-
-}
-
-if(count>=3){
-for(let i=0;i<count;i++){
-matches.push({x:SIZE-1-i,y})
-}
-}
-
-}
-
-
-
-for(let x=0;x<SIZE;x++){
-
-let count=1
-
-for(let y=1;y<SIZE;y++){
-
-if(board[y][x]===board[y-1][x]){
-
-count++
-
-}else{
-
-if(count>=3){
-for(let i=0;i<count;i++){
-matches.push({x,y:y-1-i})
-}
-}
-
-count=1
-
-}
-
-}
-
-if(count>=3){
-for(let i=0;i<count;i++){
-matches.push({x,y:SIZE-1-i})
-}
-}
-
-}
-
-return matches
-
-}
-
-
-
 // ================= PROCESS MATCH =================
 
 function processMatches(){
 
-let matches=checkMatches()
+const matches = MatchDetection.getMatches(board)
 
 if(matches.length===0){
 
@@ -447,17 +355,29 @@ return
 
 }
 
-matches.forEach(m=>{
+matches.forEach(match=>{
 
-let cell = board[m.y][m.x]
+if(match.type){
 
-if(typeof cell === "object"){
-Specials.activate(m.x,m.y)
+const c = match.cells[0]
+
+Specials.create(match.type,c.x,c.y)
+
 }
 
-score+=50
+match.cells.forEach(cell=>{
 
-board[m.y][m.x]=null
+let piece = board[cell.y][cell.x]
+
+if(typeof piece === "object"){
+Specials.activate(cell.x,cell.y)
+}
+
+score += 50
+
+board[cell.y][cell.x]=null
+
+})
 
 })
 
@@ -519,7 +439,7 @@ if(x<SIZE-1){
 
 swapTest(x,y,x+1,y)
 
-if(checkMatches().length>0){
+if(MatchDetection.getMatches(board).length>0){
 swapTest(x,y,x+1,y)
 return true
 }
@@ -532,7 +452,7 @@ if(y<SIZE-1){
 
 swapTest(x,y,x,y+1)
 
-if(checkMatches().length>0){
+if(MatchDetection.getMatches(board).length>0){
 swapTest(x,y,x,y+1)
 return true
 }
@@ -575,7 +495,7 @@ renderBoard()
 
 
 
-// ================= HINT SYSTEM =================
+// ================= HINT =================
 
 function startHintTimer(){
 
@@ -594,52 +514,22 @@ if(x<SIZE-1){
 
 swapTest(x,y,x+1,y)
 
-let matches=checkMatches()
-
-swapTest(x,y,x+1,y)
-
-if(matches.length>0){
-highlightHint(x,y)
-return
-}
-
-}
-
-if(y<SIZE-1){
-
-swapTest(x,y,x,y+1)
-
-let matches=checkMatches()
-
-swapTest(x,y,x,y+1)
-
-if(matches.length>0){
-highlightHint(x,y)
-return
-}
-
-}
-
-}
-}
-
-}
-
-function highlightHint(x,y){
-
-clearHints()
+if(MatchDetection.getMatches(board).length>0){
 
 cells[y][x].classList.add("hint")
 
-setTimeout(()=>clearHints(),2000)
+setTimeout(()=>cells[y][x].classList.remove("hint"),2000)
+
+swapTest(x,y,x+1,y)
+
+return
 
 }
 
-function clearHints(){
+swapTest(x,y,x+1,y)
 
-for(let y=0;y<SIZE;y++){
-for(let x=0;x<SIZE;x++){
-cells[y][x].classList.remove("hint")
+}
+
 }
 }
 
@@ -653,9 +543,7 @@ function updateHUD(){
 
 document.getElementById("movesDisplay").innerText=`Ходы: ${movesLeft}`
 
-if(levelData.type==="score"){
-document.getElementById("targetDisplay").innerText=`Цель: ${score} / ${levelData.target}`
-}
+document.getElementById("targetDisplay").innerText=`Очки: ${score}`
 
 }
 
@@ -667,13 +555,17 @@ function checkWin(){
 
 if(levelFinished) return
 
-if(levelData.type==="score" && score>=levelData.target){
+if(score>=levelData.target){
+
 winLevel()
 return
+
 }
 
 if(movesLeft<=0){
+
 loseLevel()
+
 }
 
 }
@@ -684,21 +576,21 @@ loseLevel()
 
 function winLevel(){
 
-if(levelFinished) return
-
 levelFinished=true
 gameLocked=true
 
 animateCoins()
 
 setTimeout(()=>{
+
 addCoins(levelData.reward)
 updateCoinsUI()
+
 },700)
 
 showPopup(`
-<h2>Победа!</h2>
-<p>Награда: ${levelData.reward} монет</p>
+<h2>Победа</h2>
+<p>Награда ${levelData.reward} монет</p>
 <button onclick="nextLevel()">Далее</button>
 `)
 
@@ -709,8 +601,6 @@ showPopup(`
 // ================= LOSE =================
 
 function loseLevel(){
-
-if(levelFinished) return
 
 levelFinished=true
 gameLocked=true
