@@ -37,8 +37,12 @@ window.onload = init
 
 
 // ================= START LEVEL =================
-
 function startLevel(){
+
+if(!LivesSystem.hasLives()){
+LivesSystem.showNoLivesPopup()
+return
+}
 
 goTo("game")
 initLevel()
@@ -766,14 +770,30 @@ initLevel()
 
 }
 
-function restartLevel(){
+
+ function restartLevel(){
+
+// если жизней нет
+if(!LivesSystem.hasLives()){
+
+showPopup(`
+<h2>Нет жизней</h2>
+<p>Подождите восстановление</p>
+<button onclick="hidePopup()">OK</button>
+`)
+
+return
+
+}
+
+// снимаем жизнь
+LivesSystem.useLife()
 
 hidePopup()
 
 initLevel()
 
 }
-
 
 // ================= COINS =================
 
