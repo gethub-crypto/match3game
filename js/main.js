@@ -5,6 +5,7 @@ let levelData = null
 
 let movesLeft = 0
 let score = 0
+let collected = 0
 
 let levelFinished = false
 let gameLocked = false
@@ -20,7 +21,6 @@ let cells = []
 let selected = null
 
 
-
 // ================= INIT =================
 
 async function init(){
@@ -29,6 +29,7 @@ LivesSystem.init()
 
 await Levels.load()
 
+updateScreens()
 updateCoinsUI()
 
 }
@@ -65,13 +66,24 @@ levelData = Levels.get(currentLevel)
 
 createBoard()
 
+startGameplay()
+
+startHintTimer()
+
+}
+
+
+
+// ================= GAMEPLAY =================
+
+function startGameplay(){
+
 movesLeft = levelData.moves
 
 score = 0
+collected = 0
 
 updateHUD()
-
-startHintTimer()
 
 }
 
@@ -126,7 +138,7 @@ cells[y][x] = cell
 
 
 
-// ================= RANDOM COLOR =================
+// ================= RANDOM =================
 
 function randomColor(){
 
@@ -152,15 +164,15 @@ return false
 
 
 
-// ================= CELL COLOR =================
+// ================= COLOR =================
 
 function setColor(cell,color){
 
 if(typeof color === "object"){
 
-if(color.special==="rocket") cell.innerHTML="🚀"
-if(color.special==="bomb") cell.innerHTML="💣"
-if(color.special==="color") cell.innerHTML="🌈"
+if(color.special==="rocket") cell.innerHTML="ðŸš€"
+if(color.special==="bomb") cell.innerHTML="ðŸ’£"
+if(color.special==="color") cell.innerHTML="ðŸŒˆ"
 
 cell.style.background="#444"
 
@@ -226,9 +238,11 @@ onCellClick(targetX,targetY)
 
 
 
-// ================= SELECT CELL =================
+// ================= HIGHLIGHT =================
 
 function highlightCell(x,y){
+
+clearHints()
 
 for(let yy=0;yy<SIZE;yy++){
 for(let xx=0;xx<SIZE;xx++){
@@ -282,7 +296,7 @@ return
 
 swap(selected,{x,y})
 
-const matches = MatchDetection.getMatches(board)
+const matches=checkMatches()
 
 if(matches.length===0){
 
@@ -337,11 +351,89 @@ setColor(cells[y][x],board[y][x])
 
 
 
+// ================= MATCH CHECK =================
+
+function checkMatches(){
+
+let matches=[]
+
+for(let y=0;y<SIZE;y++){
+
+let count=1
+
+for(let x=1;x<SIZE;x++){
+
+if(board[y][x]===board[y][x-1]){
+
+count++
+
+}else{
+
+if(count>=3){
+for(let i=0;i<count;i++){
+matches.push({x:x-1-i,y})
+}
+}
+
+count=1
+
+}
+
+}
+
+if(count>=3){
+for(let i=0;i<count;i++){
+matches.push({x:SIZE-1-i,y})
+}
+}
+
+}
+
+
+
+for(let x=0;x<SIZE;x++){
+
+let count=1
+
+for(let y=1;y<SIZE;y++){
+
+if(board[y][x]===board[y-1][x]){
+
+count++
+
+}else{
+
+if(count>=3){
+for(let i=0;i<count;i++){
+matches.push({x,y:y-1-i})
+}
+}
+
+count=1
+
+}
+
+}
+
+if(count>=3){
+for(let i=0;i<count;i++){
+matches.push({x,y:SIZE-1-i})
+}
+}
+
+}
+
+return matches
+
+}
+
+
+
 // ================= PROCESS MATCH =================
 
 function processMatches(){
 
-const matches = MatchDetection.getMatches(board)
+let matches=checkMatches()
 
 if(matches.length===0){
 
@@ -355,29 +447,17 @@ return
 
 }
 
-matches.forEach(match=>{
+matches.forEach(m=>{
 
-if(match.type){
+let cell = board[m.y][m.x]
 
-const c = match.cells[0]
-
-Specials.create(match.type,c.x,c.y)
-
+if(typeof cell === "object"){
+Specials.activate(m.x,m.y)
 }
 
-match.cells.forEach(cell=>{
+score+=50
 
-let piece = board[cell.y][cell.x]
-
-if(typeof piece === "object"){
-Specials.activate(cell.x,cell.y)
-}
-
-score += 50
-
-board[cell.y][cell.x]=null
-
-})
+board[m.y][m.x]=null
 
 })
 
@@ -439,7 +519,7 @@ if(x<SIZE-1){
 
 swapTest(x,y,x+1,y)
 
-if(MatchDetection.getMatches(board).length>0){
+if(checkMatches().length>0){
 swapTest(x,y,x+1,y)
 return true
 }
@@ -452,7 +532,7 @@ if(y<SIZE-1){
 
 swapTest(x,y,x,y+1)
 
-if(MatchDetection.getMatches(board).length>0){
+if(checkMatches().length>0){
 swapTest(x,y,x,y+1)
 return true
 }
@@ -495,7 +575,7 @@ renderBoard()
 
 
 
-// ================= HINT =================
+// ================= HINT SYSTEM =================
 
 function startHintTimer(){
 
@@ -514,22 +594,52 @@ if(x<SIZE-1){
 
 swapTest(x,y,x+1,y)
 
-if(MatchDetection.getMatches(board).length>0){
+let matches=checkMatches()
+
+swapTest(x,y,x+1,y)
+
+if(matches.length>0){
+highlightHint(x,y)
+return
+}
+
+}
+
+if(y<SIZE-1){
+
+swapTest(x,y,x,y+1)
+
+let matches=checkMatches()
+
+swapTest(x,y,x,y+1)
+
+if(matches.length>0){
+highlightHint(x,y)
+return
+}
+
+}
+
+}
+}
+
+}
+
+function highlightHint(x,y){
+
+clearHints()
 
 cells[y][x].classList.add("hint")
 
-setTimeout(()=>cells[y][x].classList.remove("hint"),2000)
-
-swapTest(x,y,x+1,y)
-
-return
+setTimeout(()=>clearHints(),2000)
 
 }
 
-swapTest(x,y,x+1,y)
+function clearHints(){
 
-}
-
+for(let y=0;y<SIZE;y++){
+for(let x=0;x<SIZE;x++){
+cells[y][x].classList.remove("hint")
 }
 }
 
@@ -541,9 +651,11 @@ swapTest(x,y,x+1,y)
 
 function updateHUD(){
 
-document.getElementById("movesDisplay").innerText=`Ходы: ${movesLeft}`
+document.getElementById("movesDisplay").innerText=`Ð¥Ð¾Ð´Ñ‹: ${movesLeft}`
 
-document.getElementById("targetDisplay").innerText=`Очки: ${score}`
+if(levelData.type==="score"){
+document.getElementById("targetDisplay").innerText=`Ð¦ÐµÐ»ÑŒ: ${score} / ${levelData.target}`
+}
 
 }
 
@@ -555,17 +667,13 @@ function checkWin(){
 
 if(levelFinished) return
 
-if(score>=levelData.target){
-
+if(levelData.type==="score" && score>=levelData.target){
 winLevel()
 return
-
 }
 
 if(movesLeft<=0){
-
 loseLevel()
-
 }
 
 }
@@ -576,22 +684,22 @@ loseLevel()
 
 function winLevel(){
 
+if(levelFinished) return
+
 levelFinished=true
 gameLocked=true
 
 animateCoins()
 
 setTimeout(()=>{
-
 addCoins(levelData.reward)
 updateCoinsUI()
-
 },700)
 
 showPopup(`
-<h2>Победа</h2>
-<p>Награда ${levelData.reward} монет</p>
-<button onclick="nextLevel()">Далее</button>
+<h2>ÐŸÐ¾Ð±ÐµÐ´Ð°!</h2>
+<p>ÐÐ°Ð³Ñ€Ð°Ð´Ð°: ${levelData.reward} Ð¼Ð¾Ð½ÐµÑ‚</p>
+<button onclick="nextLevel()">Ð”Ð°Ð»ÐµÐµ</button>
 `)
 
 }
@@ -602,14 +710,16 @@ showPopup(`
 
 function loseLevel(){
 
+if(levelFinished) return
+
 levelFinished=true
 gameLocked=true
 
 LivesSystem.useLife()
 
 showPopup(`
-<h2>Поражение</h2>
-<button onclick="restartLevel()">Заново</button>
+<h2>ÐŸÐ¾Ñ€Ð°Ð¶ÐµÐ½Ð¸Ðµ</h2>
+<button onclick="restartLevel()">Ð—Ð°Ð½Ð¾Ð²Ð¾</button>
 `)
 
 }
@@ -647,7 +757,7 @@ function updateCoinsUI(){
 const el=document.getElementById("coinsDisplay")
 
 if(el){
-el.innerText="💰 "+getCoins()
+el.innerText="ðŸ’° "+getCoins()
 }
 
 }
@@ -666,7 +776,7 @@ for(let i=0;i<10;i++){
 
 const coin=document.createElement("div")
 
-coin.innerHTML="💰"
+coin.innerHTML="ðŸ’°"
 
 coin.className="coinFly"
 
