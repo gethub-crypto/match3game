@@ -10,6 +10,8 @@ let collected = 0
 let levelFinished = false
 let gameLocked = false
 
+let hintTimer = null
+
 const SIZE = 8
 const COLORS = ["red","blue","green","yellow","purple"]
 
@@ -55,6 +57,8 @@ levelData = Levels.get(currentLevel)
 
 createBoard()
 startGameplay()
+
+startHintTimer()
 
 }
 
@@ -128,7 +132,7 @@ return COLORS[Math.floor(Math.random()*COLORS.length)]
 }
 
 
-// ================= CHECK START MATCH =================
+// ================= START MATCH CHECK =================
 
 function hasMatchAt(x,y){
 
@@ -204,6 +208,8 @@ onCellClick(targetX,targetY)
 
 function highlightCell(x,y){
 
+clearHints()
+
 for(let yy=0;yy<SIZE;yy++){
 for(let xx=0;xx<SIZE;xx++){
 cells[yy][xx].classList.remove("selected")
@@ -271,6 +277,8 @@ selected=null
 
 updateHUD()
 
+startHintTimer()
+
 }
 
 
@@ -307,7 +315,6 @@ function checkMatches(){
 
 let matches=[]
 
-// горизонталь
 for(let y=0;y<SIZE;y++){
 
 let count=1
@@ -340,8 +347,6 @@ matches.push({x:SIZE-1-i,y})
 
 }
 
-
-// вертикаль
 for(let x=0;x<SIZE;x++){
 
 let count=1
@@ -451,9 +456,7 @@ break
 }
 
 if(board[y][x]===null){
-
 board[y][x]=randomColor()
-
 }
 
 }
@@ -463,7 +466,7 @@ board[y][x]=randomColor()
 }
 
 
-// ================= ANIMATION =================
+// ================= FALL ANIMATION =================
 
 function animateFall(x,fromY,toY){
 
@@ -493,6 +496,42 @@ cell.style.transform=""
 }
 
 requestAnimationFrame(frame)
+
+}
+
+
+// ================= COIN ANIMATION =================
+
+function animateCoins(){
+
+const coinsEl = document.getElementById("coinsDisplay")
+
+const rect = coinsEl.getBoundingClientRect()
+
+for(let i=0;i<10;i++){
+
+const coin = document.createElement("div")
+
+coin.innerHTML="💰"
+coin.className="coinFly"
+
+coin.style.left = window.innerWidth/2+"px"
+coin.style.top = window.innerHeight/2+"px"
+
+document.body.appendChild(coin)
+
+setTimeout(()=>{
+
+coin.style.transform=`translate(${rect.left-window.innerWidth/2}px,
+${rect.top-window.innerHeight/2}px) scale(0.5)`
+
+coin.style.opacity="0"
+
+},20)
+
+setTimeout(()=>{coin.remove()},900)
+
+}
 
 }
 
@@ -558,6 +597,77 @@ renderBoard()
 }
 
 
+// ================= HINT SYSTEM =================
+
+function startHintTimer(){
+
+clearTimeout(hintTimer)
+
+hintTimer=setTimeout(showHint,4000)
+
+}
+
+function showHint(){
+
+for(let y=0;y<SIZE;y++){
+for(let x=0;x<SIZE;x++){
+
+if(x<SIZE-1){
+
+swapTest(x,y,x+1,y)
+
+let matches=checkMatches()
+
+swapTest(x,y,x+1,y)
+
+if(matches.length>0){
+highlightHint(x,y)
+return
+}
+
+}
+
+if(y<SIZE-1){
+
+swapTest(x,y,x,y+1)
+
+let matches=checkMatches()
+
+swapTest(x,y,x,y+1)
+
+if(matches.length>0){
+highlightHint(x,y)
+return
+}
+
+}
+
+}
+}
+
+}
+
+function highlightHint(x,y){
+
+clearHints()
+
+cells[y][x].classList.add("hint")
+
+setTimeout(()=>{clearHints()},2000)
+
+}
+
+function clearHints(){
+
+for(let y=0;y<SIZE;y++){
+for(let x=0;x<SIZE;x++){
+cells[y][x].classList.remove("hint")
+}
+}
+
+}
+
+
 // ================= HUD =================
 
 function updateHUD(){
@@ -604,10 +714,17 @@ function winLevel(){
 
 if(levelFinished) return
 
-levelFinished = true
-gameLocked = true
+levelFinished=true
+gameLocked=true
+
+animateCoins()
+
+setTimeout(()=>{
 
 addCoins(levelData.reward)
+updateCoinsUI()
+
+},700)
 
 showPopup(`
 <h2>Победа!</h2>
@@ -624,8 +741,8 @@ function loseLevel(){
 
 if(levelFinished) return
 
-levelFinished = true
-gameLocked = true
+levelFinished=true
+gameLocked=true
 
 LivesSystem.useLife()
 
