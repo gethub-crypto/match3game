@@ -26,6 +26,7 @@ let selected = null
 async function init(){
 
 LivesSystem.init()
+
 await Levels.load()
 
 updateScreens()
@@ -36,7 +37,9 @@ updateCoinsUI()
 window.onload = init
 
 
+
 // ================= START LEVEL =================
+
 function startLevel(){
 
 if(!LivesSystem.hasLives()){
@@ -45,9 +48,11 @@ return
 }
 
 goTo("game")
+
 initLevel()
 
 }
+
 
 
 // ================= INIT LEVEL =================
@@ -60,6 +65,7 @@ gameLocked = false
 levelData = Levels.get(currentLevel)
 
 createBoard()
+
 startGameplay()
 
 startHintTimer()
@@ -67,17 +73,20 @@ startHintTimer()
 }
 
 
+
 // ================= GAMEPLAY =================
 
 function startGameplay(){
 
 movesLeft = levelData.moves
+
 score = 0
 collected = 0
 
 updateHUD()
 
 }
+
 
 
 // ================= CREATE BOARD =================
@@ -109,6 +118,7 @@ while(hasMatchAt(x,y))
 const cell = document.createElement("div")
 
 cell.className = "cell"
+
 cell.dataset.x = x
 cell.dataset.y = y
 
@@ -127,6 +137,7 @@ cells[y][x] = cell
 }
 
 
+
 // ================= RANDOM =================
 
 function randomColor(){
@@ -136,6 +147,7 @@ return COLORS[Math.floor(Math.random()*COLORS.length)]
 }
 
 
+
 // ================= START MATCH CHECK =================
 
 function hasMatchAt(x,y){
@@ -143,6 +155,7 @@ function hasMatchAt(x,y){
 const color = board[y][x]
 
 if(x>=2 && board[y][x-1]===color && board[y][x-2]===color) return true
+
 if(y>=2 && board[y-1][x]===color && board[y-2][x]===color) return true
 
 return false
@@ -150,13 +163,28 @@ return false
 }
 
 
+
 // ================= COLOR =================
 
 function setColor(cell,color){
 
-cell.style.background = color
+if(typeof color === "object"){
+
+if(color.special==="rocket") cell.innerHTML="🚀"
+if(color.special==="bomb") cell.innerHTML="💣"
+if(color.special==="color") cell.innerHTML="🌈"
+
+cell.style.background="#444"
+
+}else{
+
+cell.innerHTML=""
+cell.style.background=color
 
 }
+
+}
+
 
 
 // ================= SWIPE =================
@@ -172,6 +200,7 @@ startX = e.touches[0].clientX
 startY = e.touches[0].clientY
 
 selected = {x,y}
+
 highlightCell(x,y)
 
 })
@@ -208,6 +237,7 @@ onCellClick(targetX,targetY)
 }
 
 
+
 // ================= HIGHLIGHT =================
 
 function highlightCell(x,y){
@@ -235,6 +265,7 @@ cells[yy][xx].classList.remove("selected")
 }
 
 
+
 // ================= CLICK =================
 
 function onCellClick(x,y){
@@ -245,7 +276,9 @@ if(x<0||x>=SIZE||y<0||y>=SIZE) return
 if(!selected){
 
 selected={x,y}
+
 highlightCell(x,y)
+
 return
 
 }
@@ -272,11 +305,13 @@ swap(selected,{x,y})
 }else{
 
 movesLeft--
+
 processMatches()
 
 }
 
 clearHighlight()
+
 selected=null
 
 updateHUD()
@@ -284,6 +319,7 @@ updateHUD()
 startHintTimer()
 
 }
+
 
 
 // ================= SWAP =================
@@ -300,6 +336,7 @@ renderBoard()
 }
 
 
+
 // ================= RENDER =================
 
 function renderBoard(){
@@ -313,7 +350,8 @@ setColor(cells[y][x],board[y][x])
 }
 
 
-// ================= MATCHES =================
+
+// ================= MATCH CHECK =================
 
 function checkMatches(){
 
@@ -350,6 +388,8 @@ matches.push({x:SIZE-1-i,y})
 }
 
 }
+
+
 
 for(let x=0;x<SIZE;x++){
 
@@ -388,6 +428,7 @@ return matches
 }
 
 
+
 // ================= PROCESS MATCH =================
 
 function processMatches(){
@@ -408,28 +449,26 @@ return
 
 matches.forEach(m=>{
 
-const color=board[m.y][m.x]
+let cell = board[m.y][m.x]
+
+if(typeof cell === "object"){
+Specials.activate(m.x,m.y)
+}
 
 score+=50
-
-if(levelData.type==="collect"){
-
-if(!levelData.colors || color===levelData.colors){
-collected++
-}
-
-}
 
 board[m.y][m.x]=null
 
 })
 
 drop()
+
 renderBoard()
 
 setTimeout(processMatches,200)
 
 }
+
 
 
 // ================= DROP =================
@@ -448,8 +487,6 @@ if(board[k][x]!==null){
 
 board[y][x]=board[k][x]
 board[k][x]=null
-
-animateFall(x,k,y)
 
 break
 
@@ -470,75 +507,6 @@ board[y][x]=randomColor()
 }
 
 
-// ================= FALL ANIMATION =================
-
-function animateFall(x,fromY,toY){
-
-const cell=cells[fromY][x]
-
-const distance=(toY-fromY)*40
-
-let start=null
-
-function frame(timestamp){
-
-if(!start) start=timestamp
-
-const progress=(timestamp-start)/150
-
-if(progress<1){
-
-cell.style.transform=`translateY(${distance*progress}px)`
-requestAnimationFrame(frame)
-
-}else{
-
-cell.style.transform=""
-
-}
-
-}
-
-requestAnimationFrame(frame)
-
-}
-
-
-// ================= COIN ANIMATION =================
-
-function animateCoins(){
-
-const coinsEl = document.getElementById("coinsDisplay")
-
-const rect = coinsEl.getBoundingClientRect()
-
-for(let i=0;i<10;i++){
-
-const coin = document.createElement("div")
-
-coin.innerHTML="💰"
-coin.className="coinFly"
-
-coin.style.left = window.innerWidth/2+"px"
-coin.style.top = window.innerHeight/2+"px"
-
-document.body.appendChild(coin)
-
-setTimeout(()=>{
-
-coin.style.transform=`translate(${rect.left-window.innerWidth/2}px,
-${rect.top-window.innerHeight/2}px) scale(0.5)`
-
-coin.style.opacity="0"
-
-},20)
-
-setTimeout(()=>{coin.remove()},900)
-
-}
-
-}
-
 
 // ================= POSSIBLE MOVES =================
 
@@ -550,10 +518,12 @@ for(let x=0;x<SIZE;x++){
 if(x<SIZE-1){
 
 swapTest(x,y,x+1,y)
+
 if(checkMatches().length>0){
 swapTest(x,y,x+1,y)
 return true
 }
+
 swapTest(x,y,x+1,y)
 
 }
@@ -561,10 +531,12 @@ swapTest(x,y,x+1,y)
 if(y<SIZE-1){
 
 swapTest(x,y,x,y+1)
+
 if(checkMatches().length>0){
 swapTest(x,y,x,y+1)
 return true
 }
+
 swapTest(x,y,x,y+1)
 
 }
@@ -586,6 +558,7 @@ board[y2][x2]=temp
 }
 
 
+
 // ================= SHUFFLE =================
 
 function shuffleBoard(){
@@ -599,6 +572,7 @@ board[y][x]=randomColor()
 renderBoard()
 
 }
+
 
 
 // ================= HINT SYSTEM =================
@@ -657,7 +631,7 @@ clearHints()
 
 cells[y][x].classList.add("hint")
 
-setTimeout(()=>{clearHints()},2000)
+setTimeout(()=>clearHints(),2000)
 
 }
 
@@ -672,6 +646,7 @@ cells[y][x].classList.remove("hint")
 }
 
 
+
 // ================= HUD =================
 
 function updateHUD(){
@@ -682,14 +657,11 @@ if(levelData.type==="score"){
 document.getElementById("targetDisplay").innerText=`Цель: ${score} / ${levelData.target}`
 }
 
-if(levelData.type==="collect"){
-document.getElementById("targetDisplay").innerText=`Собрано: ${collected} / ${levelData.target}`
-}
-
 }
 
 
-// ================= CHECK =================
+
+// ================= WIN CHECK =================
 
 function checkWin(){
 
@@ -700,16 +672,12 @@ winLevel()
 return
 }
 
-if(levelData.type==="collect" && collected>=levelData.target){
-winLevel()
-return
-}
-
 if(movesLeft<=0){
 loseLevel()
 }
 
 }
+
 
 
 // ================= WIN =================
@@ -724,10 +692,8 @@ gameLocked=true
 animateCoins()
 
 setTimeout(()=>{
-
 addCoins(levelData.reward)
 updateCoinsUI()
-
 },700)
 
 showPopup(`
@@ -737,6 +703,7 @@ showPopup(`
 `)
 
 }
+
 
 
 // ================= LOSE =================
@@ -758,6 +725,7 @@ showPopup(`
 }
 
 
+
 // ================= LEVEL =================
 
 function nextLevel(){
@@ -770,30 +738,17 @@ initLevel()
 
 }
 
+function restartLevel(){
 
- function restartLevel(){
-
-// если жизней нет
-if(!LivesSystem.hasLives()){
-
-showPopup(`
-<h2>Нет жизней</h2>
-<p>Подождите восстановление</p>
-<button onclick="hidePopup()">OK</button>
-`)
-
-return
-
-}
-
-// снимаем жизнь
-LivesSystem.useLife()
+if(!LivesSystem.useLife()) return
 
 hidePopup()
 
 initLevel()
 
 }
+
+
 
 // ================= COINS =================
 
@@ -806,3 +761,41 @@ el.innerText="💰 "+getCoins()
 }
 
 }
+
+
+
+// ================= COIN ANIMATION =================
+
+function animateCoins(){
+
+const coinsEl=document.getElementById("coinsDisplay")
+
+const rect=coinsEl.getBoundingClientRect()
+
+for(let i=0;i<10;i++){
+
+const coin=document.createElement("div")
+
+coin.innerHTML="💰"
+
+coin.className="coinFly"
+
+coin.style.left=window.innerWidth/2+"px"
+coin.style.top=window.innerHeight/2+"px"
+
+document.body.appendChild(coin)
+
+setTimeout(()=>{
+
+coin.style.transform=`translate(${rect.left-window.innerWidth/2}px,
+${rect.top-window.innerHeight/2}px) scale(0.5)`
+
+coin.style.opacity="0"
+
+},20)
+
+setTimeout(()=>coin.remove(),900)
+
+}
+
+ }
