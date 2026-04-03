@@ -170,9 +170,9 @@ function setColor(cell,color){
 
 if(typeof color === "object"){
 
-if(color.special==="rocket") cell.innerHTML="ðŸš€"
-if(color.special==="bomb") cell.innerHTML="ðŸ’£"
-if(color.special==="color") cell.innerHTML="ðŸŒˆ"
+if(color.special==="rocket") cell.innerHTML="🚀"
+if(color.special==="bomb") cell.innerHTML="💣"
+if(color.special==="color") cell.innerHTML="🌈"
 
 cell.style.background="#444"
 
@@ -651,10 +651,10 @@ cells[y][x].classList.remove("hint")
 
 function updateHUD(){
 
-document.getElementById("movesDisplay").innerText=`Ð¥Ð¾Ð´Ñ‹: ${movesLeft}`
+document.getElementById("movesDisplay").innerText=`Ходы: ${movesLeft}`
 
 if(levelData.type==="score"){
-document.getElementById("targetDisplay").innerText=`Ð¦ÐµÐ»ÑŒ: ${score} / ${levelData.target}`
+document.getElementById("targetDisplay").innerText=`Цель: ${score} / ${levelData.target}`
 }
 
 }
@@ -697,9 +697,9 @@ updateCoinsUI()
 },700)
 
 showPopup(`
-<h2>ÐŸÐ¾Ð±ÐµÐ´Ð°!</h2>
-<p>ÐÐ°Ð³Ñ€Ð°Ð´Ð°: ${levelData.reward} Ð¼Ð¾Ð½ÐµÑ‚</p>
-<button onclick="nextLevel()">Ð”Ð°Ð»ÐµÐµ</button>
+<h2>Победа!</h2>
+<p>Награда: ${levelData.reward} монет</p>
+<button onclick="nextLevel()">Далее</button>
 `)
 
 }
@@ -718,8 +718,8 @@ gameLocked=true
 LivesSystem.useLife()
 
 showPopup(`
-<h2>ÐŸÐ¾Ñ€Ð°Ð¶ÐµÐ½Ð¸Ðµ</h2>
-<button onclick="restartLevel()">Ð—Ð°Ð½Ð¾Ð²Ð¾</button>
+<h2>Поражение</h2>
+<button onclick="restartLevel()">Заново</button>
 `)
 
 }
@@ -757,7 +757,7 @@ function updateCoinsUI(){
 const el=document.getElementById("coinsDisplay")
 
 if(el){
-el.innerText="ðŸ’° "+getCoins()
+el.innerText="💰 "+getCoins()
 }
 
 }
@@ -776,7 +776,7 @@ for(let i=0;i<10;i++){
 
 const coin=document.createElement("div")
 
-coin.innerHTML="ðŸ’°"
+coin.innerHTML="💰"
 
 coin.className="coinFly"
 
