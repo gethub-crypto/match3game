@@ -798,4 +798,4 @@ setTimeout(()=>coin.remove(),900)
 
 }
 
-  }
+}
