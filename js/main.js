@@ -433,9 +433,9 @@ return matches
 
 function processMatches(){
 
-let matches=checkMatches()
+let matches = checkMatches()
 
-if(matches.length===0){
+if(matches.length === 0){
 
 checkWin()
 
@@ -444,20 +444,70 @@ shuffleBoard()
 }
 
 return
-
 }
+
+// группируем клетки по цвету
+let groups = {}
 
 matches.forEach(m=>{
 
-let cell = board[m.y][m.x]
+let color = board[m.y][m.x]
 
-if(typeof cell === "object"){
-Specials.activate(m.x,m.y)
+if(typeof color === "object") color = color.color
+
+if(!groups[color]) groups[color] = []
+
+groups[color].push(m)
+
+})
+
+Object.values(groups).forEach(group=>{
+
+// если 4 и больше — создаём спец
+let specialCell = null
+let specialType = null
+
+if(group.length >= 5){
+
+specialCell = group[2]
+specialType = "color"
+
+}
+else if(group.length === 4){
+
+specialCell = group[1]
+specialType = "rocket"
+
 }
 
-score+=50
+// удаляем клетки
+group.forEach(c=>{
 
-board[m.y][m.x]=null
+if(specialCell && c.x === specialCell.x && c.y === specialCell.y){
+return
+}
+
+let cell = board[c.y][c.x]
+
+if(typeof cell === "object"){
+Specials.activate(c.x,c.y)
+}
+
+score += 50
+
+board[c.y][c.x] = null
+
+})
+
+// создаём спец-шар
+if(specialCell){
+
+board[specialCell.y][specialCell.x] = {
+color: randomColor(),
+special: specialType
+}
+
+}
 
 })
 
@@ -467,7 +517,7 @@ renderBoard()
 
 setTimeout(processMatches,200)
 
-}
+ }
 
 
 
