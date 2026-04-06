@@ -3,112 +3,100 @@ const MatchDetection = {
 getMatches(board){
 
 const matches=[]
-const map={}
+const size=board.length
 
-for(let y=0;y<SIZE;y++){
-for(let x=0;x<SIZE;x++){
+const used=new Set()
 
-const color=board[y][x]
-
-if(typeof color !== "string") continue
-
-// горизонталь
-let line=[{x,y}]
-
-for(let i=x+1;i<SIZE;i++){
-
-if(board[y][i]===color){
-line.push({x:i,y})
-}else{
-break
+function key(x,y){
+return x+"_"+y
 }
 
+function getColor(cell){
+if(!cell) return null
+if(typeof cell==="object") return cell.color || null
+return cell
 }
 
-if(line.length>=3){
+for(let y=0;y<size;y++){
+for(let x=0;x<size;x++){
 
-line.forEach(c=>{
-map[c.x+"_"+c.y]=true
+const color=getColor(board[y][x])
+if(!color) continue
+
+let horiz=[{x,y}]
+
+for(let i=x+1;i<size;i++){
+
+if(getColor(board[y][i])===color){
+horiz.push({x:i,y})
+}else break
+
+}
+
+if(horiz.length>=3){
+
+let type=null
+
+if(horiz.length===4) type="rocket"
+if(horiz.length>=5) type="color"
+
+let cells=[...horiz]
+
+horiz.forEach(c=>{
+
+let vert=[c]
+
+for(let j=c.y+1;j<size;j++){
+
+if(getColor(board[j][c.x])===color){
+vert.push({x:c.x,y:j})
+}else break
+
+}
+
+for(let j=c.y-1;j>=0;j--){
+
+if(getColor(board[j][c.x])===color){
+vert.unshift({x:c.x,y:j})
+}else break
+
+}
+
+if(vert.length>=3){
+
+type="bomb"
+
+vert.forEach(v=>cells.push(v))
+
+}
+
 })
+
+cells=cells.filter((c,i,a)=>
+a.findIndex(o=>o.x===c.x && o.y===c.y)===i
+)
+
+const id=cells.map(c=>key(c.x,c.y)).join("|")
+
+if(!used.has(id)){
+
+used.add(id)
 
 matches.push({
-cells:line,
-type:this.detectSpecial(line)
-})
-
-}
-
-// вертикаль
-line=[{x,y}]
-
-for(let i=y+1;i<SIZE;i++){
-
-if(board[i][x]===color){
-line.push({x,y:i})
-}else{
-break
-}
-
-}
-
-if(line.length>=3){
-
-line.forEach(c=>{
-map[c.x+"_"+c.y]=true
-})
-
-matches.push({
-cells:line,
-type:this.detectSpecial(line)
+type:type,
+cells:cells
 })
 
 }
 
 }
+
+}
+
 }
 
 return matches
 
-},
-
-
-
-detectSpecial(line){
-
-if(line.length>=5){
-return "color"
 }
 
-if(line.length===4){
-return "rocket"
-}
-
-return null
-
-},
-
-
-
-detectShape(board,cells){
-
-const xs=cells.map(c=>c.x)
-const ys=cells.map(c=>c.y)
-
-const minX=Math.min(...xs)
-const maxX=Math.max(...xs)
-
-const minY=Math.min(...ys)
-const maxY=Math.max(...ys)
-
-const width=maxX-minX+1
-const height=maxY-minY+1
-
-if(width===3 && height===3){
-return "bomb"
-}
-
-return null
-
-}
-
-  }
+    }
