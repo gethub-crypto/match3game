@@ -431,6 +431,7 @@ return matches
 
 // ================= PROCESS MATCH =================
 
+
 function processMatches(){
 
 const matches = MatchDetection.getMatches(board)
@@ -450,17 +451,13 @@ matches.forEach(match=>{
 
 let specialCell=null
 
-// определяем клетку спец-шара
 if(match.type==="rocket") specialCell=match.cells[1]
 if(match.type==="color") specialCell=match.cells[2]
 if(match.type==="bomb") specialCell=match.cells[0]
 
-// удаляем клетки
 match.cells.forEach(c=>{
 
-if(specialCell && c.x===specialCell.x && c.y===specialCell.y){
-return
-}
+if(specialCell && c.x===specialCell.x && c.y===specialCell.y) return
 
 let cell=board[c.y][c.x]
 
@@ -469,15 +466,16 @@ Specials.activate(c.x,c.y)
 }
 
 score+=50
-
 board[c.y][c.x]=null
 
 })
 
-// создаём спец-шар
 if(specialCell){
 
-Specials.create(match.type,specialCell.x,specialCell.y)
+board[specialCell.y][specialCell.x]={
+color: randomColor(),
+special: match.type
+}
 
 }
 
@@ -485,12 +483,13 @@ Specials.create(match.type,specialCell.x,specialCell.y)
 
 drop()
 
+spawnNew()
+
 renderBoard()
 
-setTimeout(processMatches,200)
+setTimeout(processMatches,150)
 
 }
-
 
 
 
@@ -525,6 +524,24 @@ board[y][x]=randomColor()
 
 }
 
+}
+
+}
+
+
+////-----spawn---///
+
+
+function spawnNew(){
+
+for(let y=0;y<SIZE;y++){
+for(let x=0;x<SIZE;x++){
+
+if(board[y][x]===null){
+board[y][x]=randomColor()
+}
+
+}
 }
 
 }
