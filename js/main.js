@@ -323,43 +323,68 @@ startHintTimer()
 
 
 // ================= SWAP =================
- 
+
 function swap(x1,y1,x2,y2){
 
 let a = board[y1][x1]
 let b = board[y2][x2]
 
-// если есть спец-шар
+// сначала меняем местами
+board[y1][x1] = b
+board[y2][x2] = a
+
+renderBoard()
+
+// если один из шаров спец
 if(typeof a==="object" && a.special){
 
-Specials.activate(x1,y1)
-board[y1][x1]=null
-drop()
-spawnNew()
-renderBoard()
-return
-
-}
-
-if(typeof b==="object" && b.special){
-
+setTimeout(()=>{
 Specials.activate(x2,y2)
 board[y2][x2]=null
 drop()
 spawnNew()
 renderBoard()
-return
+processMatches()
+},100)
 
+return
 }
 
-// обычный swap
-let temp=a
-board[y1][x1]=b
-board[y2][x2]=temp
+if(typeof b==="object" && b.special){
+
+setTimeout(()=>{
+Specials.activate(x1,y1)
+board[y1][x1]=null
+drop()
+spawnNew()
+renderBoard()
+processMatches()
+},100)
+
+return
+}
+
+// обычный ход
+setTimeout(()=>{
+
+let matches = MatchDetection.getMatches(board)
+
+if(matches.length===0){
+
+// если матчей нет — вернуть swap назад
+let temp = board[y1][x1]
+board[y1][x1] = board[y2][x2]
+board[y2][x2] = temp
 
 renderBoard()
 
-setTimeout(processMatches,100)
+}else{
+
+processMatches()
+
+}
+
+},100)
 
 }
 
