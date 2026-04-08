@@ -322,7 +322,7 @@ startHintTimer()
 
 
 
-// ================= SWAP =================
+// ================= SWAP ===========
 
 function swap(a,b){
 
@@ -334,11 +334,42 @@ renderBoard()
 
 setTimeout(()=>{
 
+let A = board[a.y][a.x]
+let B = board[b.y][b.x]
+
+// если один из шаров спец
+if(typeof A==="object" && A.special){
+
+Specials.activate(a.x,a.y)
+board[a.y][a.x]=null
+
+drop()
+spawnNew()
+renderBoard()
+processMatches()
+return
+
+}
+
+if(typeof B==="object" && B.special){
+
+Specials.activate(b.x,b.y)
+board[b.y][b.x]=null
+
+drop()
+spawnNew()
+renderBoard()
+processMatches()
+return
+
+}
+
+// обычный матч
 let matches = MatchDetection.getMatches(board)
 
 if(matches.length===0){
 
-// если нет матчей — вернуть обратно
+// вернуть назад
 let t = board[a.y][a.x]
 board[a.y][a.x] = board[b.y][b.x]
 board[b.y][b.x] = t
@@ -354,8 +385,6 @@ processMatches()
 },100)
 
 }
-
-
 
 
 
