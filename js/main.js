@@ -323,18 +323,45 @@ startHintTimer()
 
 
 // ================= SWAP =================
+ 
+function swap(x1,y1,x2,y2){
 
-function swap(a,b){
+let a = board[y1][x1]
+let b = board[y2][x2]
 
-const temp=board[a.y][a.x]
+// если есть спец-шар
+if(typeof a==="object" && a.special){
 
-board[a.y][a.x]=board[b.y][b.x]
-board[b.y][b.x]=temp
-
+Specials.activate(x1,y1)
+board[y1][x1]=null
+drop()
+spawnNew()
 renderBoard()
+return
 
 }
 
+if(typeof b==="object" && b.special){
+
+Specials.activate(x2,y2)
+board[y2][x2]=null
+drop()
+spawnNew()
+renderBoard()
+return
+
+}
+
+// обычный swap
+let temp=a
+board[y1][x1]=b
+board[y2][x2]=temp
+
+renderBoard()
+
+setTimeout(processMatches,100)
+
+}
 
 
 // ================= RENDER =================
