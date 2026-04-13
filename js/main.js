@@ -15,7 +15,7 @@ let processTimeout = null
 let isProcessing = false
 
 const SIZE = 8
-const COLORS = ["red", "blue", "green", "yellow", "purple"]
+const COLORS = ["red","blue","green","yellow","purple"]
 
 let board = []
 let cells = []
@@ -27,12 +27,12 @@ let selected = null
 
 async function init(){
     try {
-        if(typeof livesSystem !== "undefined") livesSystem.init()
-        if(typeof levels !== "undefined") await levels.load()
+        if(typeof LivesSystem !== "undefined") LivesSystem.init()
+        if(typeof Levels !== "undefined") await Levels.load()
         updateScreens()
         updateCoinsUI()
     } catch(e){
-        // на планшете просто игнорируем
+        console.log("Init error", e)
     }
 }
 
@@ -42,8 +42,8 @@ window.onload = init
 // ================= START LEVEL =================
 
 function startLevel(){
-    if(typeof livesSystem !== "undefined" && !livesSystem.hasLives()){
-        if(typeof livesSystem.showNoLivesPopup === "function") livesSystem.showNoLivesPopup()
+    if(typeof LivesSystem !== "undefined" && !LivesSystem.hasLives()){
+        if(typeof LivesSystem.showNoLivesPopup === "function") LivesSystem.showNoLivesPopup()
         return
     }
     if(typeof goTo === "function") goTo("game")
@@ -60,7 +60,7 @@ function initLevel(){
     if(processTimeout) clearTimeout(processTimeout)
     if(hintTimer) clearTimeout(hintTimer)
     
-    if(typeof levels !== "undefined") levelData = levels.get(currentLevel)
+    if(typeof Levels !== "undefined") levelData = Levels.get(currentLevel)
     else {
         levelData = { moves: 20, type: "score", target: 500, reward: 10 }
     }
@@ -111,10 +111,7 @@ function createBoard(){
             cell.dataset.y = y
             setColor(cell, color)
             
-            // добавляем обработчики для касания (планшет)
             addTouchEvents(cell, x, y)
-            
-            // добавляем обработчики для мыши (десктоп)
             addMouseEvents(cell, x, y)
             
             boardEl.appendChild(cell)
@@ -169,7 +166,7 @@ function renderBoard(){
 }
 
 
-// ================= TOUCH EVENTS (планшет) =================
+// ================= TOUCH EVENTS =================
 
 function addTouchEvents(cell, x, y){
     let touchStartX = 0
@@ -224,7 +221,7 @@ function addTouchEvents(cell, x, y){
 }
 
 
-// ================= MOUSE EVENTS (десктоп) =================
+// ================= MOUSE EVENTS =================
 
 function addMouseEvents(cell, x, y){
     let mouseStartX = 0
@@ -275,10 +272,6 @@ function addMouseEvents(cell, x, y){
         }
         e.preventDefault()
         isDragging = false
-        
-        if(!hasMoved && selected && selected.x === x && selected.y === y){
-            // оставляем выделенным
-        }
     })
     
     cell.addEventListener("mouseleave", (e) => {
@@ -342,7 +335,6 @@ function swap(a, b){
     const A = board[a.y][a.x]
     const B = board[b.y][b.x]
     
-    // пробуем обменять
     board[a.y][a.x] = B
     board[b.y][b.x] = A
     renderBoard()
@@ -354,7 +346,6 @@ function swap(a, b){
         matches = checkMatchesSimple()
     }
     
-    // если нет матчей — откатываем
     if(matches.length === 0){
         board[a.y][a.x] = A
         board[b.y][b.x] = B
@@ -362,22 +353,19 @@ function swap(a, b){
         return
     }
     
-    // есть матчи
     gameLocked = true
     movesLeft--
     updateHUD()
     
-    // обрабатываем матчи
     processMatches()
 }
 
 
-// ================= ПРОСТАЯ ПРОВЕРКА МАТЧЕЙ (запасной вариант) =================
+// ================= ПРОСТАЯ ПРОВЕРКА МАТЧЕЙ =================
 
 function checkMatchesSimple(){
     const matches = []
     
-    // горизонтальные
     for(let y = 0; y < SIZE; y++){
         let count = 1
         for(let x = 1; x < SIZE; x++){
@@ -401,7 +389,6 @@ function checkMatchesSimple(){
         }
     }
     
-    // вертикальные
     for(let x = 0; x < SIZE; x++){
         let count = 1
         for(let y = 1; y < SIZE; y++){
@@ -443,7 +430,6 @@ function processMatches(){
         matches = checkMatchesSimple()
     }
     
-    // нет матчей — выходим
     if(matches.length === 0){
         gameLocked = false
         isProcessing = false
@@ -455,7 +441,6 @@ function processMatches(){
         return
     }
     
-    // обрабатываем матчи
     for(let match of matches){
         let specialCell = null
         
@@ -493,15 +478,10 @@ function processMatches(){
         }
     }
     
-    // падение
     drop()
-    
-    // появление новых
     spawnNew()
-    
     renderBoard()
     
-    // задержка перед следующей проверкой
     processTimeout = setTimeout(() => {
         isProcessing = false
         let newMatches = []
@@ -527,14 +507,12 @@ function drop(){
     for(let x = 0; x < SIZE; x++){
         const column = []
         
-        // собираем все не-null клетки сверху вниз
         for(let y = 0; y < SIZE; y++){
             if(board[y][x] !== null){
                 column.push(board[y][x])
             }
         }
         
-        // заполняем снизу вверх
         for(let y = SIZE - 1; y >= 0; y--){
             if(column.length > 0){
                 board[y][x] = column.pop()
@@ -763,8 +741,8 @@ function loseLevel(){
     if(processTimeout) clearTimeout(processTimeout)
     if(hintTimer) clearTimeout(hintTimer)
     
-    if(typeof livesSystem !== "undefined" && livesSystem.useLife){
-        livesSystem.useLife()
+    if(typeof LivesSystem !== "undefined" && LivesSystem.useLife){
+        LivesSystem.useLife()
     }
     
     if(typeof showPopup === "function"){
@@ -774,4 +752,62 @@ function loseLevel(){
         `)
     } else {
         alert("Поражение! Попробуйте ещё раз")
+        restartLevel()
+    }
+}
+
+
+// ================= LEVEL NAVIGATION =================
+
+function nextLevel(){
+    currentLevel++
+    if(typeof hidePopup === "function") hidePopup()
+    initLevel()
+}
+
+function restartLevel(){
+    if(typeof LivesSystem !== "undefined" && LivesSystem.useLife){
+        if(!LivesSystem.useLife()) return
+    }
+    if(typeof hidePopup === "function") hidePopup()
+    initLevel()
+}
+
+
+// ================= COINS =================
+
+function updateCoinsUI(){
+    const el = document.getElementById("coinsDisplay")
+    if(el){
+        let coins = 0
+        if(typeof getCoins === "function") coins = getCoins()
+        el.innerText = "💰 " + coins
+    }
+}
+
+function animateCoins(){
+    const coinsEl = document.getElementById("coinsDisplay")
+    if(!coinsEl) return
+    
+    const rect = coinsEl.getBoundingClientRect()
+    
+    for(let i = 0; i < 10; i++){
+        const coin = document.createElement("div")
+        coin.innerHTML = "💰"
+        coin.className = "coinFly"
+        coin.style.position = "fixed"
+        coin.style.left = window.innerWidth / 2 + "px"
+        coin.style.top = window.innerHeight / 2 + "px"
+        coin.style.fontSize = "30px"
+        coin.style.transition = "all 0.7s ease-out"
+        coin.style.zIndex = "1000"
+        document.body.appendChild(coin)
         
+        setTimeout(() => {
+            coin.style.transform = `translate(${rect.left - window.innerWidth/2}px, ${rect.top - window.innerHeight/2}px) scale(0.3)`
+            coin.style.opacity = "0"
+        }, 20)
+        
+        setTimeout(() => coin.remove(), 800)
+    }
+}
