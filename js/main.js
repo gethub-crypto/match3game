@@ -15,7 +15,7 @@ let processTimeout = null
 let isProcessing = false
 
 const SIZE = 8
-const COLORS = ["red","blue","green","yellow","purple"]
+const COLORS = ["red", "blue", "green", "yellow", "purple"]
 
 let board = []
 let cells = []
@@ -91,10 +91,10 @@ function createBoard(){
     board = []
     cells = []
 
-    for(let y=0; y<SIZE; y++){
+    for(let y = 0; y < SIZE; y++){
         board[y] = []
         cells[y] = []
-        for(let x=0; x<SIZE; x++){
+        for(let x = 0; x < SIZE; x++){
             let color
             let attempts = 0
             do {
@@ -110,7 +110,13 @@ function createBoard(){
             cell.dataset.x = x
             cell.dataset.y = y
             setColor(cell, color)
+            
+            // добавляем обработчики для касания (планшет)
             addTouchEvents(cell, x, y)
+            
+            // добавляем обработчики для мыши (десктоп)
+            addMouseEvents(cell, x, y)
+            
             boardEl.appendChild(cell)
             cells[y][x] = cell
         }
@@ -118,8 +124,8 @@ function createBoard(){
 }
 
 function hasMatchAt(x, y, color){
-    if(x>=2 && board[y][x-1]===color && board[y][x-2]===color) return true
-    if(y>=2 && board[y-1][x]===color && board[y-2][x]===color) return true
+    if(x >= 2 && board[y][x-1] === color && board[y][x-2] === color) return true
+    if(y >= 2 && board[y-1][x] === color && board[y-2][x] === color) return true
     return false
 }
 
@@ -127,7 +133,7 @@ function hasMatchAt(x, y, color){
 // ================= RANDOM =================
 
 function randomColor(){
-    return COLORS[Math.floor(Math.random()*COLORS.length)]
+    return COLORS[Math.floor(Math.random() * COLORS.length)]
 }
 
 
@@ -143,7 +149,7 @@ function setColor(cell, cellData){
         else cell.innerHTML = "?"
         cell.style.background = "#444"
         cell.style.color = "white"
-        cell.style.fontSize = "24px"
+        cell.style.fontSize = "28px"
         cell.style.display = "flex"
         cell.style.alignItems = "center"
         cell.style.justifyContent = "center"
@@ -155,15 +161,15 @@ function setColor(cell, cellData){
 }
 
 function renderBoard(){
-    for(let y=0; y<SIZE; y++){
-        for(let x=0; x<SIZE; x++){
+    for(let y = 0; y < SIZE; y++){
+        for(let x = 0; x < SIZE; x++){
             setColor(cells[y][x], board[y][x])
         }
     }
 }
 
 
-// ================= TOUCH EVENTS =================
+// ================= TOUCH EVENTS (планшет) =================
 
 function addTouchEvents(cell, x, y){
     let touchStartX = 0
@@ -218,6 +224,69 @@ function addTouchEvents(cell, x, y){
 }
 
 
+// ================= MOUSE EVENTS (десктоп) =================
+
+function addMouseEvents(cell, x, y){
+    let mouseStartX = 0
+    let mouseStartY = 0
+    let isDragging = false
+    let hasMoved = false
+    
+    cell.addEventListener("mousedown", (e) => {
+        if(gameLocked || levelFinished) return
+        e.preventDefault()
+        mouseStartX = e.clientX
+        mouseStartY = e.clientY
+        isDragging = true
+        hasMoved = false
+        selected = { x, y }
+        highlightCell(x, y)
+    })
+    
+    cell.addEventListener("mousemove", (e) => {
+        if(!isDragging || gameLocked || levelFinished) return
+        e.preventDefault()
+        
+        const dx = e.clientX - mouseStartX
+        const dy = e.clientY - mouseStartY
+        
+        let targetX = x
+        let targetY = y
+        
+        if(Math.abs(dx) > Math.abs(dy)){
+            if(dx > 20) targetX = x + 1
+            if(dx < -20) targetX = x - 1
+        } else {
+            if(dy > 20) targetY = y + 1
+            if(dy < -20) targetY = y - 1
+        }
+        
+        if((targetX !== x || targetY !== y) && targetX >= 0 && targetX < SIZE && targetY >= 0 && targetY < SIZE){
+            isDragging = false
+            hasMoved = true
+            onCellClick(targetX, targetY)
+        }
+    })
+    
+    cell.addEventListener("mouseup", (e) => {
+        if(!isDragging || gameLocked || levelFinished) {
+            isDragging = false
+            return
+        }
+        e.preventDefault()
+        isDragging = false
+        
+        if(!hasMoved && selected && selected.x === x && selected.y === y){
+            // оставляем выделенным
+        }
+    })
+    
+    cell.addEventListener("mouseleave", (e) => {
+        isDragging = false
+    })
+}
+
+
 // ================= HIGHLIGHT =================
 
 function highlightCell(x, y){
@@ -227,8 +296,8 @@ function highlightCell(x, y){
 }
 
 function clearHighlight(){
-    for(let y=0; y<SIZE; y++){
-        for(let x=0; x<SIZE; x++){
+    for(let y = 0; y < SIZE; y++){
+        for(let x = 0; x < SIZE; x++){
             if(cells[y] && cells[y][x]) cells[y][x].classList.remove("selected")
         }
     }
@@ -239,7 +308,7 @@ function clearHighlight(){
 
 function onCellClick(x, y){
     if(gameLocked || levelFinished) return
-    if(x<0 || x>=SIZE || y<0 || y>=SIZE) return
+    if(x < 0 || x >= SIZE || y < 0 || y >= SIZE) return
     
     if(!selected){
         selected = { x, y }
@@ -250,7 +319,7 @@ function onCellClick(x, y){
     const dx = Math.abs(selected.x - x)
     const dy = Math.abs(selected.y - y)
     
-    if(dx+dy !== 1){
+    if(dx + dy !== 1){
         clearHighlight()
         selected = null
         return
@@ -309,16 +378,16 @@ function checkMatchesSimple(){
     const matches = []
     
     // горизонтальные
-    for(let y=0; y<SIZE; y++){
+    for(let y = 0; y < SIZE; y++){
         let count = 1
-        for(let x=1; x<SIZE; x++){
+        for(let x = 1; x < SIZE; x++){
             const curr = board[y][x]
             const prev = board[y][x-1]
             if(curr === prev && curr !== null){
                 count++
             } else {
                 if(count >= 3){
-                    for(let i=0; i<count; i++){
+                    for(let i = 0; i < count; i++){
                         matches.push({ x: x-1-i, y })
                     }
                 }
@@ -326,23 +395,23 @@ function checkMatchesSimple(){
             }
         }
         if(count >= 3){
-            for(let i=0; i<count; i++){
+            for(let i = 0; i < count; i++){
                 matches.push({ x: SIZE-1-i, y })
             }
         }
     }
     
     // вертикальные
-    for(let x=0; x<SIZE; x++){
+    for(let x = 0; x < SIZE; x++){
         let count = 1
-        for(let y=1; y<SIZE; y++){
+        for(let y = 1; y < SIZE; y++){
             const curr = board[y][x]
             const prev = board[y-1][x]
             if(curr === prev && curr !== null){
                 count++
             } else {
                 if(count >= 3){
-                    for(let i=0; i<count; i++){
+                    for(let i = 0; i < count; i++){
                         matches.push({ x, y: y-1-i })
                     }
                 }
@@ -350,7 +419,7 @@ function checkMatchesSimple(){
             }
         }
         if(count >= 3){
-            for(let i=0; i<count; i++){
+            for(let i = 0; i < count; i++){
                 matches.push({ x, y: SIZE-1-i })
             }
         }
@@ -455,18 +524,18 @@ function processMatches(){
 // ================= DROP =================
 
 function drop(){
-    for(let x=0; x<SIZE; x++){
+    for(let x = 0; x < SIZE; x++){
         const column = []
         
         // собираем все не-null клетки сверху вниз
-        for(let y=0; y<SIZE; y++){
+        for(let y = 0; y < SIZE; y++){
             if(board[y][x] !== null){
                 column.push(board[y][x])
             }
         }
         
         // заполняем снизу вверх
-        for(let y=SIZE-1; y>=0; y--){
+        for(let y = SIZE - 1; y >= 0; y--){
             if(column.length > 0){
                 board[y][x] = column.pop()
             } else {
@@ -480,8 +549,8 @@ function drop(){
 // ================= SPAWN NEW =================
 
 function spawnNew(){
-    for(let y=0; y<SIZE; y++){
-        for(let x=0; x<SIZE; x++){
+    for(let y = 0; y < SIZE; y++){
+        for(let x = 0; x < SIZE; x++){
             if(board[y][x] === null){
                 board[y][x] = randomColor()
             }
@@ -493,9 +562,9 @@ function spawnNew(){
 // ================= POSSIBLE MOVES =================
 
 function hasPossibleMoves(){
-    for(let y=0; y<SIZE; y++){
-        for(let x=0; x<SIZE; x++){
-            if(x < SIZE-1){
+    for(let y = 0; y < SIZE; y++){
+        for(let x = 0; x < SIZE; x++){
+            if(x < SIZE - 1){
                 swapTest(x, y, x+1, y)
                 let matches = []
                 if(typeof matchDetection !== "undefined" && matchDetection.getMatches){
@@ -510,7 +579,7 @@ function hasPossibleMoves(){
                 swapTest(x, y, x+1, y)
             }
             
-            if(y < SIZE-1){
+            if(y < SIZE - 1){
                 swapTest(x, y, x, y+1)
                 let matches = []
                 if(typeof matchDetection !== "undefined" && matchDetection.getMatches){
@@ -539,8 +608,8 @@ function swapTest(x1, y1, x2, y2){
 // ================= SHUFFLE =================
 
 function shuffleBoard(){
-    for(let y=0; y<SIZE; y++){
-        for(let x=0; x<SIZE; x++){
+    for(let y = 0; y < SIZE; y++){
+        for(let x = 0; x < SIZE; x++){
             board[y][x] = randomColor()
         }
     }
@@ -564,9 +633,9 @@ function startHintTimer(){
 function showHint(){
     if(gameLocked || levelFinished) return
     
-    for(let y=0; y<SIZE; y++){
-        for(let x=0; x<SIZE; x++){
-            if(x < SIZE-1){
+    for(let y = 0; y < SIZE; y++){
+        for(let x = 0; x < SIZE; x++){
+            if(x < SIZE - 1){
                 swapTest(x, y, x+1, y)
                 let matches = []
                 if(typeof matchDetection !== "undefined" && matchDetection.getMatches){
@@ -582,7 +651,7 @@ function showHint(){
                 swapTest(x, y, x+1, y)
             }
             
-            if(y < SIZE-1){
+            if(y < SIZE - 1){
                 swapTest(x, y, x, y+1)
                 let matches = []
                 if(typeof matchDetection !== "undefined" && matchDetection.getMatches){
@@ -608,8 +677,8 @@ function highlightHint(x, y){
 }
 
 function clearHints(){
-    for(let y=0; y<SIZE; y++){
-        for(let x=0; x<SIZE; x++){
+    for(let y = 0; y < SIZE; y++){
+        for(let x = 0; x < SIZE; x++){
             if(cells[y] && cells[y][x]) cells[y][x].classList.remove("hint")
         }
     }
@@ -705,62 +774,4 @@ function loseLevel(){
         `)
     } else {
         alert("Поражение! Попробуйте ещё раз")
-        restartLevel()
-    }
-}
-
-
-// ================= LEVEL NAVIGATION =================
-
-function nextLevel(){
-    currentLevel++
-    if(typeof hidePopup === "function") hidePopup()
-    initLevel()
-}
-
-function restartLevel(){
-    if(typeof livesSystem !== "undefined" && livesSystem.useLife){
-        if(!livesSystem.useLife()) return
-    }
-    if(typeof hidePopup === "function") hidePopup()
-    initLevel()
-}
-
-
-// ================= COINS =================
-
-function updateCoinsUI(){
-    const el = document.getElementById("coinsDisplay")
-    if(el){
-        let coins = 0
-        if(typeof getCoins === "function") coins = getCoins()
-        el.innerText = "💰 " + coins
-    }
-}
-
-function animateCoins(){
-    const coinsEl = document.getElementById("coinsDisplay")
-    if(!coinsEl) return
-    
-    const rect = coinsEl.getBoundingClientRect()
-    
-    for(let i=0; i<10; i++){
-        const coin = document.createElement("div")
-        coin.innerHTML = "💰"
-        coin.className = "coinFly"
-        coin.style.position = "fixed"
-        coin.style.left = window.innerWidth/2 + "px"
-        coin.style.top = window.innerHeight/2 + "px"
-        coin.style.fontSize = "30px"
-        coin.style.transition = "all 0.7s ease-out"
-        coin.style.zIndex = "1000"
-        document.body.appendChild(coin)
         
-        setTimeout(() => {
-            coin.style.transform = `translate(${rect.left - window.innerWidth/2}px, ${rect.top - window.innerHeight/2}px) scale(0.3)`
-            coin.style.opacity = "0"
-        }, 20)
-        
-        setTimeout(() => coin.remove(), 800)
-    }
-    }
