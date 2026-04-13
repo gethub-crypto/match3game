@@ -21,6 +21,7 @@ let board = []
 let cells = []
 
 let selected = null
+let dragTarget = null
 
 
 // ================= INIT =================
@@ -111,8 +112,8 @@ function createBoard(){
             cell.dataset.y = y
             setColor(cell, color)
             
-            addTouchEvents(cell, x, y)
-            addMouseEvents(cell, x, y)
+            // универсальные обработчики (работают и для мыши, и для touch)
+            addCellEvents(cell, x, y)
             
             boardEl.appendChild(cell)
             cells[y][x] = cell
@@ -139,7 +140,8 @@ function randomColor(){
 function setColor(cell, cellData){
     if(!cell) return
     
-    if(typeof cellData === "object" && cellData && cellData.special){
+    if(cellData && typeof cellData === "object" && cellData.special){
+        // спецэлемент
         if(cellData.special === "rocket") cell.innerHTML = "🚀"
         else if(cellData.special === "bomb") cell.innerHTML = "💣"
         else if(cellData.special === "color") cell.innerHTML = "🌈"
@@ -151,6 +153,7 @@ function setColor(cell, cellData){
         cell.style.alignItems = "center"
         cell.style.justifyContent = "center"
     } else {
+        // обычный шарик
         const color = typeof cellData === "string" ? cellData : (cellData?.color || "#999")
         cell.innerHTML = ""
         cell.style.background = color
@@ -166,116 +169,91 @@ function renderBoard(){
 }
 
 
-// ================= TOUCH EVENTS =================
+// ================= УНИВЕРСАЛЬНЫЕ СОБЫТИЯ (мышь + touch) =================
 
-function addTouchEvents(cell, x, y){
-    let touchStartX = 0
-    let touchStartY = 0
-    let isTouching = false
+function addCellEvents(cell, x, y){
+    let startX = 0, startY = 0
+    let isDragging = false
     
-    cell.addEventListener("touchstart", (e) => {
+    // НАЧАЛО (мышь или палец)
+    const onStart = (clientX, clientY) => {
         if(gameLocked || levelFinished) return
-        e.preventDefault()
-        touchStartX = e.touches[0].clientX
-        touchStartY = e.touches[0].clientY
-        isTouching = true
+        startX = clientX
+        startY = clientY
+        isDragging = true
         selected = { x, y }
         highlightCell(x, y)
-    })
+    }
     
-    cell.addEventListener("touchmove", (e) => {
-        if(!isTouching || gameLocked || levelFinished) return
-        e.preventDefault()
+    // ДВИЖЕНИЕ
+    const onMove = (clientX, clientY) => {
+        if(!isDragging || gameLocked || levelFinished) return
         
-        const endX = e.touches[0].clientX
-        const endY = e.touches[0].clientY
-        const dx = endX - touchStartX
-        const dy = endY - touchStartY
+        const dx = clientX - startX
+        const dy = clientY - startY
         
         let targetX = x
         let targetY = y
         
         if(Math.abs(dx) > Math.abs(dy)){
-            if(dx > 30) targetX = x + 1
-            if(dx < -30) targetX = x - 1
+            if(dx > 25) targetX = x + 1
+            if(dx < -25) targetX = x - 1
         } else {
-            if(dy > 30) targetY = y + 1
-            if(dy < -30) targetY = y - 1
+            if(dy > 25) targetY = y + 1
+            if(dy < -25) targetY = y - 1
         }
         
         if((targetX !== x || targetY !== y) && targetX >= 0 && targetX < SIZE && targetY >= 0 && targetY < SIZE){
-            isTouching = false
+            isDragging = false
             onCellClick(targetX, targetY)
+        }
+    }
+    
+    // ЗАВЕРШЕНИЕ
+    const onEnd = () => {
+        isDragging = false
+    }
+    
+    // ==== MOUSE EVENTS ====
+    cell.addEventListener("mousedown", (e) => {
+        e.preventDefault()
+        onStart(e.clientX, e.clientY)
+    })
+    
+    window.addEventListener("mousemove", (e) => {
+        if(isDragging){
+            e.preventDefault()
+            onMove(e.clientX, e.clientY)
+        }
+    })
+    
+    window.addEventListener("mouseup", () => {
+        onEnd()
+    })
+    
+    // ==== TOUCH EVENTS ====
+    cell.addEventListener("touchstart", (e) => {
+        e.preventDefault()
+        const touch = e.touches[0]
+        onStart(touch.clientX, touch.clientY)
+    })
+    
+    cell.addEventListener("touchmove", (e) => {
+        if(isDragging){
+            e.preventDefault()
+            const touch = e.touches[0]
+            onMove(touch.clientX, touch.clientY)
         }
     })
     
     cell.addEventListener("touchend", (e) => {
-        isTouching = false
         e.preventDefault()
+        onEnd()
     })
     
     cell.addEventListener("touchcancel", (e) => {
-        isTouching = false
         e.preventDefault()
-    })
-}
-
-
-// ================= MOUSE EVENTS =================
-
-function addMouseEvents(cell, x, y){
-    let mouseStartX = 0
-    let mouseStartY = 0
-    let isDragging = false
-    let hasMoved = false
-    
-    cell.addEventListener("mousedown", (e) => {
-        if(gameLocked || levelFinished) return
-        e.preventDefault()
-        mouseStartX = e.clientX
-        mouseStartY = e.clientY
-        isDragging = true
-        hasMoved = false
-        selected = { x, y }
-        highlightCell(x, y)
-    })
-    
-    cell.addEventListener("mousemove", (e) => {
-        if(!isDragging || gameLocked || levelFinished) return
-        e.preventDefault()
-        
-        const dx = e.clientX - mouseStartX
-        const dy = e.clientY - mouseStartY
-        
-        let targetX = x
-        let targetY = y
-        
-        if(Math.abs(dx) > Math.abs(dy)){
-            if(dx > 20) targetX = x + 1
-            if(dx < -20) targetX = x - 1
-        } else {
-            if(dy > 20) targetY = y + 1
-            if(dy < -20) targetY = y - 1
-        }
-        
-        if((targetX !== x || targetY !== y) && targetX >= 0 && targetX < SIZE && targetY >= 0 && targetY < SIZE){
-            isDragging = false
-            hasMoved = true
-            onCellClick(targetX, targetY)
-        }
-    })
-    
-    cell.addEventListener("mouseup", (e) => {
-        if(!isDragging || gameLocked || levelFinished) {
-            isDragging = false
-            return
-        }
-        e.preventDefault()
-        isDragging = false
-    })
-    
-    cell.addEventListener("mouseleave", (e) => {
-        isDragging = false
+        onEnd()
     })
 }
 
@@ -335,6 +313,7 @@ function swap(a, b){
     const A = board[a.y][a.x]
     const B = board[b.y][b.x]
     
+    // пробуем обменять
     board[a.y][a.x] = B
     board[b.y][b.x] = A
     renderBoard()
@@ -346,6 +325,7 @@ function swap(a, b){
         matches = checkMatchesSimple()
     }
     
+    // если нет матчей — откатываем
     if(matches.length === 0){
         board[a.y][a.x] = A
         board[b.y][b.x] = B
@@ -353,6 +333,7 @@ function swap(a, b){
         return
     }
     
+    // есть матчи
     gameLocked = true
     movesLeft--
     updateHUD()
@@ -371,7 +352,7 @@ function checkMatchesSimple(){
         for(let x = 1; x < SIZE; x++){
             const curr = board[y][x]
             const prev = board[y][x-1]
-            if(curr === prev && curr !== null){
+            if(curr && prev && curr === prev){
                 count++
             } else {
                 if(count >= 3){
@@ -394,7 +375,7 @@ function checkMatchesSimple(){
         for(let y = 1; y < SIZE; y++){
             const curr = board[y][x]
             const prev = board[y-1][x]
-            if(curr === prev && curr !== null){
+            if(curr && prev && curr === prev){
                 count++
             } else {
                 if(count >= 3){
@@ -441,6 +422,7 @@ function processMatches(){
         return
     }
     
+    // обрабатываем матчи
     for(let match of matches){
         let specialCell = null
         
@@ -458,9 +440,10 @@ function processMatches(){
                 
                 const cell = board[c.y][c.x]
                 
+                // активация спецэлементов, которые уже были на поле
                 if(cell && typeof cell === "object" && cell.special){
-                    if(typeof specials !== "undefined" && specials.activate){
-                        specials.activate(c.x, c.y, null, board, SIZE)
+                    if(typeof Specials !== "undefined" && Specials.activate){
+                        Specials.activate(c.x, c.y, board, SIZE)
                     }
                     score += 50
                 }
@@ -470,10 +453,11 @@ function processMatches(){
             }
         }
         
+        // создаём новый спецэлемент
         if(specialCell && match.type){
             board[specialCell.y][specialCell.x] = {
                 special: match.type,
-                color: randomColor()
+                color: null
             }
         }
     }
@@ -497,7 +481,7 @@ function processMatches(){
             gameLocked = false
             checkWin()
         }
-    }, 120)
+    }, 100)
 }
 
 
