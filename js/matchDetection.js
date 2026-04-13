@@ -40,13 +40,12 @@ for(let i=start;i<x;i++){
 cells.push({x:i,y})
 }
 
-// определяем тип
 let type=null
 
 if(len===4) type="rocket"
 if(len>=5) type="color"
 
-// проверка T / L
+// проверка T / L для бомбы
 cells.forEach(c=>{
 
 let up=0
@@ -76,7 +75,6 @@ cells = cells.filter((c,i,a)=>
 a.findIndex(o=>o.x===c.x && o.y===c.y)===i
 )
 
-// ключ группы
 const id=cells.map(c=>key(c.x,c.y)).join("|")
 
 if(!mark.has(id)){
@@ -154,4 +152,4 @@ return matches
 
 }
 
-            }
+                                   }
