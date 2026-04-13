@@ -1,4 +1,4 @@
-const specials = {
+const Specials = {
 
     create(type, x, y, board, SIZE, renderBoard){
         board[y][x] = {
