@@ -22,6 +22,12 @@ let cells = []
 
 let selected = null
 
+// ================= СОВМЕСТИМОСТЬ С ИМЕНАМИ ФАЙЛОВ =================
+// Если файл называется matchDetection.js (с маленькой буквы)
+if(typeof matchDetection !== "undefined" && typeof MatchDetection === "undefined"){
+    var MatchDetection = matchDetection
+}
+
 
 // ================= INIT =================
 
