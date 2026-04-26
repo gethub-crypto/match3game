@@ -128,8 +128,12 @@ function hasMatchAt(x,y){
 // ================= COLOR =================
 
 function setColor(cell, data){
+  // Сначала убираем все классы анимаций
+  cell.classList.remove("match-pop", "special-flash", "special-wave", "drop-in")
+  
   // Проверка на спец-ячейку (объект)
   if(typeof data === "object" && data !== null){
+    cell.innerHTML = ""
     if(data.special === "rocket") cell.innerHTML = "🚀"
     if(data.special === "bomb") cell.innerHTML = "💣"
     if(data.special === "color") cell.innerHTML = "🌈"
@@ -280,35 +284,66 @@ async function processMatchesAsync(){
     
     // Сначала собираем все спец-ячейки для активации
     const specialsToActivate = []
+    const newSpecials = [] // Новые спец-ячейки, которые нужно создать
     
     matches.forEach(match => {
       let specialCell = null
       
+      // Определяем специальную ячейку для создания спец-комбинации
       if(match.type === "rocket") specialCell = match.cells[1]
       if(match.type === "color") specialCell = match.cells[2]
       if(match.type === "bomb") specialCell = match.cells[0]
       
       match.cells.forEach(c => {
         if(specialCell && c.x === specialCell.x && c.y === specialCell.y) {
-          // Сохраняем спец-ячейку для активации
-          specialsToActivate.push({
-            x: c.x,
-            y: c.y,
-            type: match.type,
-            color: board[c.y][c.x].color
-          })
+          // Сохраняем для активации существующую спец-ячейку
+          const cellData = board[c.y][c.x]
+          if(cellData && typeof cellData === "object" && cellData.special) {
+            specialsToActivate.push({
+              x: c.x,
+              y: c.y,
+              type: cellData.special,
+              color: cellData.color
+            })
+          } else if(match.type) {
+            // Создаём новую спец-комбинацию
+            newSpecials.push({
+              x: c.x,
+              y: c.y,
+              type: match.type,
+              color: board[c.y][c.x]?.color || randomColor()
+            })
+          }
           return
         }
         
+        // Удаляем обычные фишки
         score += 50
         board[c.y][c.x] = null
       })
     })
     
+    // Создаём новые спец-ячейки
+    newSpecials.forEach(s => {
+      board[s.y][s.x] = {
+        color: s.color,
+        special: s.type,
+        type: "special"
+      }
+    })
+    
+    // Перерисовываем, чтобы показать новые спец-ячейки
+    renderBoard()
+    
+    // Небольшая пауза чтобы игрок увидел новые спец-фишки
+    if(newSpecials.length > 0) {
+      await sleep(200)
+    }
+    
     // Анимация удаления обычных матчей
     await animateMatches(matches)
     
-    // Активируем спец-комбинации с анимацией
+    // Активируем существующие спец-комбинации с анимацией
     for(const special of specialsToActivate){
       await animateSpecial(special)
     }
@@ -373,7 +408,7 @@ async function animateSpecial(special){
   const x = special.x
   const y = special.y
   
-  // Сначала активируем спец-комбинацию в данных
+  // Активируем спец-комбинацию в данных
   Specials.activate(x, y, special.color)
   
   // Показываем вспышку на месте спец-ячейки
@@ -388,7 +423,9 @@ async function animateSpecial(special){
     }
   })
   
-  await sleep(500) // Ждём анимацию
+  // Ждём анимацию и рендерим промежуточное состояние
+  renderBoard()
+  await sleep(500)
   
   // Убираем классы
   cell.classList.remove("special-flash")
@@ -786,4 +823,4 @@ function processMatches(){
   // Эта функция больше не используется
   // Оставлена для совместимости со старым кодом
   console.warn("processMatches() устарела, используйте processMatchesAsync()")
-        }
+}
