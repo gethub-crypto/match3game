@@ -128,12 +128,8 @@ function hasMatchAt(x,y){
 // ================= COLOR =================
 
 function setColor(cell, data){
-  // Сначала убираем все классы анимаций
-  cell.classList.remove("match-pop", "special-flash", "special-wave", "drop-in")
-  
   // Проверка на спец-ячейку (объект)
   if(typeof data === "object" && data !== null){
-    cell.innerHTML = ""
     if(data.special === "rocket") cell.innerHTML = "🚀"
     if(data.special === "bomb") cell.innerHTML = "💣"
     if(data.special === "color") cell.innerHTML = "🌈"
@@ -229,34 +225,21 @@ function onCellClick(x, y){
     return
   }
   
-  // Блокируем игру на время обработки
-  gameLocked = true
-  
   swap(selected, {x, y})
   
-  const matches = MatchDetection.getMatches(board)
+  const matches = checkMatches()
   
   if(matches.length === 0){
-    // Меняем обратно
     swap(selected, {x, y})
-    gameLocked = false
   }else{
     movesLeft--
-    updateHUD()
-    
-    // Асинхронная обработка с анимациями
-    processMatchesAsync().then(() => {
-      gameLocked = false
-      checkWin()
-      if(!levelFinished && !hasPossibleMoves()){
-        shuffleBoard()
-      }
-      startHintTimer()
-    })
+    processMatches()
   }
   
   clearHighlight()
   selected = null
+  updateHUD()
+  startHintTimer()
 }
 
 
@@ -271,212 +254,42 @@ function swap(a, b){
   board[b.y][b.x] = A
   
   renderBoard()
-}
-
-
-// ================= АСИНХРОННАЯ ОБРАБОТКА =================
-
-async function processMatchesAsync(){
-  while(true){
-    const matches = MatchDetection.getMatches(board)
-    
-    if(matches.length === 0) break
-    
-    // Сначала собираем все спец-ячейки для активации
-    const specialsToActivate = []
-    const newSpecials = [] // Новые спец-ячейки, которые нужно создать
-    
-    matches.forEach(match => {
-      let specialCell = null
-      
-      // Определяем специальную ячейку для создания спец-комбинации
-      if(match.type === "rocket") specialCell = match.cells[1]
-      if(match.type === "color") specialCell = match.cells[2]
-      if(match.type === "bomb") specialCell = match.cells[0]
-      
-      match.cells.forEach(c => {
-        if(specialCell && c.x === specialCell.x && c.y === specialCell.y) {
-          // Сохраняем для активации существующую спец-ячейку
-          const cellData = board[c.y][c.x]
-          if(cellData && typeof cellData === "object" && cellData.special) {
-            specialsToActivate.push({
-              x: c.x,
-              y: c.y,
-              type: cellData.special,
-              color: cellData.color
-            })
-          } else if(match.type) {
-            // Создаём новую спец-комбинацию
-            newSpecials.push({
-              x: c.x,
-              y: c.y,
-              type: match.type,
-              color: board[c.y][c.x]?.color || randomColor()
-            })
-          }
-          return
-        }
-        
-        // Удаляем обычные фишки
-        score += 50
-        board[c.y][c.x] = null
-      })
-    })
-    
-    // Создаём новые спец-ячейки
-    newSpecials.forEach(s => {
-      board[s.y][s.x] = {
-        color: s.color,
-        special: s.type,
-        type: "special"
-      }
-    })
-    
-    // Перерисовываем, чтобы показать новые спец-ячейки
-    renderBoard()
-    
-    // Небольшая пауза чтобы игрок увидел новые спец-фишки
-    if(newSpecials.length > 0) {
-      await sleep(200)
-    }
-    
-    // Анимация удаления обычных матчей
-    await animateMatches(matches)
-    
-    // Активируем существующие спец-комбинации с анимацией
-    for(const special of specialsToActivate){
-      await animateSpecial(special)
-    }
-    
-    // Удаляем активированные спец-ячейки
-    specialsToActivate.forEach(s => {
-      board[s.y][s.x] = null
-    })
-    
-    // Падение и появление новых
-    await animateDrop()
-    
-    renderBoard()
-    updateHUD()
-    
-    // Пауза перед следующей проверкой
-    await sleep(300)
-  }
-}
-
-// Анимация для обычных матчей
-function animateMatches(matches){
-  return new Promise(resolve => {
-    const allCells = new Set()
-    
-    matches.forEach(match => {
-      match.cells.forEach(c => {
-        // Не анимируем спец-ячейки (у них своя анимация)
-        if(board[c.y][c.x] && typeof board[c.y][c.x] === "object") return
-        
-        const key = `${c.x}_${c.y}`
-        allCells.add(key)
-        const cell = cells[c.y][c.x]
-        if(cell) {
-          cell.classList.add("match-pop")
-        }
-      })
-    })
-    
-    if(allCells.size === 0) {
-      resolve()
+  
+  setTimeout(() => {
+    // если A был спец
+    if(typeof A === "object" && A !== null && A.special){
+      Specials.activate(b.x, b.y)
+      board[b.y][b.x] = null
+      drop()
+      spawnNew()
+      renderBoard()
+      processMatches()
       return
     }
     
-    setTimeout(() => {
-      allCells.forEach(key => {
-        const [x, y] = key.split("_").map(Number)
-        const cell = cells[y][x]
-        if(cell) cell.classList.remove("match-pop")
-      })
-      resolve()
-    }, 400)
-  })
-}
-
-// Анимация для спец-комбинаций
-async function animateSpecial(special){
-  const cell = cells[special.y][special.x]
-  if(!cell) return
-  
-  const specialType = special.type
-  const x = special.x
-  const y = special.y
-  
-  // Активируем спец-комбинацию в данных
-  Specials.activate(x, y, special.color)
-  
-  // Показываем вспышку на месте спец-ячейки
-  cell.classList.add("special-flash")
-  
-  // Подсвечиваем все затронутые ячейки
-  const affectedCells = getAffectedCells(specialType, x, y)
-  
-  affectedCells.forEach(({x, y}) => {
-    if(x >= 0 && x < SIZE && y >= 0 && y < SIZE && board[y][x] !== null) {
-      cells[y][x].classList.add("special-wave")
+    // если B был спец
+    if(typeof B === "object" && B !== null && B.special){
+      Specials.activate(a.x, a.y)
+      board[a.y][a.x] = null
+      drop()
+      spawnNew()
+      renderBoard()
+      processMatches()
+      return
     }
-  })
-  
-  // Ждём анимацию и рендерим промежуточное состояние
-  renderBoard()
-  await sleep(500)
-  
-  // Убираем классы
-  cell.classList.remove("special-flash")
-  affectedCells.forEach(({x, y}) => {
-    if(x >= 0 && x < SIZE && y >= 0 && y < SIZE && cells[y][x]) {
-      cells[y][x].classList.remove("special-wave")
+    
+    // обычный матч
+    let matches = MatchDetection.getMatches(board)
+    
+    if(matches.length === 0){
+      // вернуть назад
+      board[a.y][a.x] = A
+      board[b.y][b.x] = B
+      renderBoard()
+    }else{
+      processMatches()
     }
-  })
-}
-
-// Получаем ячейки, затронутые спец-комбинацией
-function getAffectedCells(type, x, y){
-  const cells = []
-  
-  if(type === "rocket"){
-    // Ракета: ряд и колонка
-    for(let i=0; i<SIZE; i++){
-      cells.push({x: i, y})
-      cells.push({x, y: i})
-    }
-  }
-  else if(type === "bomb"){
-    // Бомба: 3x3
-    for(let yy=y-1; yy<=y+1; yy++){
-      for(let xx=x-1; xx<=x+1; xx++){
-        cells.push({x: xx, y: yy})
-      }
-    }
-  }
-  else if(type === "color"){
-    // Радуга: все ячейки того же цвета
-    const targetColor = board[y][x]?.color || randomColor()
-    for(let yy=0; yy<SIZE; yy++){
-      for(let xx=0; xx<SIZE; xx++){
-        const cell = board[yy][xx]
-        if(cell && (
-          (typeof cell === "string" && cell === targetColor) ||
-          (typeof cell === "object" && cell.color === targetColor)
-        )){
-          cells.push({x: xx, y: yy})
-        }
-      }
-    }
-  }
-  
-  return cells
-}
-
-// Вспомогательная функция для пауз
-function sleep(ms){
-  return new Promise(resolve => setTimeout(resolve, ms))
+  }, 100)
 }
 
 
@@ -499,7 +312,7 @@ function checkMatches(){
   for(let y=0; y<SIZE; y++){
     let count = 1
     for(let x=1; x<SIZE; x++){
-      if(typeof board[y][x] === "string" && typeof board[y][x-1] === "string" && board[y][x] === board[y][x-1]){
+      if(board[y][x] === board[y][x-1]){
         count++
       }else{
         if(count >= 3){
@@ -520,7 +333,7 @@ function checkMatches(){
   for(let x=0; x<SIZE; x++){
     let count = 1
     for(let y=1; y<SIZE; y++){
-      if(typeof board[y][x] === "string" && typeof board[y-1][x] === "string" && board[y][x] === board[y-1][x]){
+      if(board[y][x] === board[y-1][x]){
         count++
       }else{
         if(count >= 3){
@@ -539,6 +352,56 @@ function checkMatches(){
   }
   
   return matches
+}
+
+
+// ================= PROCESS MATCH =================
+
+function processMatches(){
+  const matches = MatchDetection.getMatches(board)
+  
+  if(matches.length === 0){
+    checkWin()
+    if(!hasPossibleMoves()){
+      shuffleBoard()
+    }
+    return
+  }
+  
+  matches.forEach(match => {
+    let specialCell = null
+    
+    if(match.type === "rocket") specialCell = match.cells[1]
+    if(match.type === "color") specialCell = match.cells[2]
+    if(match.type === "bomb") specialCell = match.cells[0]
+    
+    match.cells.forEach(c => {
+      if(specialCell && c.x === specialCell.x && c.y === specialCell.y) return
+      
+      let cell = board[c.y][c.x]
+      
+      if(typeof cell === "object" && cell !== null){
+        Specials.activate(c.x, c.y)
+      }
+      
+      score += 50
+      board[c.y][c.x] = null
+    })
+    
+    if(specialCell){
+      board[specialCell.y][specialCell.x] = {
+        color: randomColor(),
+        special: match.type,
+        type: "special"  // ← для совместимости с specials.js
+      }
+    }
+  })
+  
+  drop()
+  spawnNew()
+  renderBoard()
+  
+  setTimeout(processMatches, 150)
 }
 
 
@@ -575,38 +438,6 @@ function spawnNew(){
       }
     }
   }
-}
-
-
-// ================= ANIMATE DROP =================
-
-async function animateDrop(){
-  // Падение и создание новых
-  drop()
-  spawnNew()
-  renderBoard()
-  
-  // Анимация появления
-  return new Promise(resolve => {
-    for(let y=0; y<SIZE; y++){
-      for(let x=0; x<SIZE; x++){
-        const cell = cells[y][x]
-        if(cell && board[y][x] !== null){
-          cell.classList.add("drop-in")
-        }
-      }
-    }
-    
-    setTimeout(() => {
-      for(let y=0; y<SIZE; y++){
-        for(let x=0; x<SIZE; x++){
-          const cell = cells[y][x]
-          if(cell) cell.classList.remove("drop-in")
-        }
-      }
-      resolve()
-    }, 300)
-  })
 }
 
 
@@ -814,13 +645,4 @@ function animateCoins(){
     
     setTimeout(() => coin.remove(), 900)
   }
-}
-
-
-// ================= PROCESS MATCHES (устаревшая) =================
-
-function processMatches(){
-  // Эта функция больше не используется
-  // Оставлена для совместимости со старым кодом
-  console.warn("processMatches() устарела, используйте processMatchesAsync()")
-}
+    }
