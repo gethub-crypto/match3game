@@ -225,21 +225,32 @@ function onCellClick(x, y){
     return
   }
   
+  // Блокируем игру на время обработки
+  gameLocked = true
+  
   swap(selected, {x, y})
   
   const matches = checkMatches()
   
   if(matches.length === 0){
     swap(selected, {x, y})
+    gameLocked = false
   }else{
     movesLeft--
-    processMatches()
+    updateHUD()
+    // Асинхронная обработка
+    processMatchesAsync().then(() => {
+      gameLocked = false
+      checkWin()
+      if(!levelFinished && !hasPossibleMoves()){
+        shuffleBoard()
+      }
+      startHintTimer()
+    })
   }
   
   clearHighlight()
   selected = null
-  updateHUD()
-  startHintTimer()
 }
 
 
@@ -254,42 +265,122 @@ function swap(a, b){
   board[b.y][b.x] = A
   
   renderBoard()
+}
+
+
+// ================= АСИНХРОННАЯ ОБРАБОТКА =================
+
+async function processMatchesAsync(){
+  while(true){
+    const matches = MatchDetection.getMatches(board)
+    
+    if(matches.length === 0) break
+    
+    // Анимация удаления (вспышка)
+    await animateMatches(matches)
+    
+    // Удаление и начисление очков
+    processMatchesData(matches)
+    
+    // Падение и появление новых
+    await animateDrop()
+    
+    renderBoard()
+    
+    // Пауза перед следующей проверкой
+    await sleep(300)
+  }
+}
+
+function animateMatches(matches){
+  return new Promise(resolve => {
+    const allCells = new Set()
+    
+    matches.forEach(match => {
+      match.cells.forEach(c => {
+        const key = `${c.x}_${c.y}`
+        allCells.add(key)
+        const cell = cells[c.y][c.x]
+        if(cell) cell.classList.add("match-pop")
+      })
+    })
+    
+    setTimeout(() => {
+      allCells.forEach(key => {
+        const [x, y] = key.split("_").map(Number)
+        const cell = cells[y][x]
+        if(cell) cell.classList.remove("match-pop")
+      })
+      resolve()
+    }, 400)
+  })
+}
+
+function processMatchesData(matches){
+  matches.forEach(match => {
+    let specialCell = null
+    
+    if(match.type === "rocket") specialCell = match.cells[1]
+    if(match.type === "color") specialCell = match.cells[2]
+    if(match.type === "bomb") specialCell = match.cells[0]
+    
+    match.cells.forEach(c => {
+      if(specialCell && c.x === specialCell.x && c.y === specialCell.y) return
+      
+      let cell = board[c.y][c.x]
+      
+      if(typeof cell === "object" && cell !== null){
+        // Активируем спец-ячейку
+        Specials.activate(c.x, c.y)
+      }
+      
+      score += 50
+      board[c.y][c.x] = null
+    })
+    
+    if(specialCell){
+      board[specialCell.y][specialCell.x] = {
+        color: randomColor(),
+        special: match.type,
+        type: "special"
+      }
+    }
+  })
   
-  setTimeout(() => {
-    // если A был спец
-    if(typeof A === "object" && A !== null && A.special){
-      Specials.activate(b.x, b.y)
-      board[b.y][b.x] = null
-      drop()
-      spawnNew()
-      renderBoard()
-      processMatches()
-      return
+  updateHUD()
+}
+
+async function animateDrop(){
+  // Простое падение
+  drop()
+  spawnNew()
+  renderBoard()
+  
+  // Анимация появления
+  return new Promise(resolve => {
+    for(let y=0; y<SIZE; y++){
+      for(let x=0; x<SIZE; x++){
+        const cell = cells[y][x]
+        if(cell && board[y][x] !== null){
+          cell.classList.add("drop-in")
+        }
+      }
     }
     
-    // если B был спец
-    if(typeof B === "object" && B !== null && B.special){
-      Specials.activate(a.x, a.y)
-      board[a.y][a.x] = null
-      drop()
-      spawnNew()
-      renderBoard()
-      processMatches()
-      return
-    }
-    
-    // обычный матч
-    let matches = MatchDetection.getMatches(board)
-    
-    if(matches.length === 0){
-      // вернуть назад
-      board[a.y][a.x] = A
-      board[b.y][b.x] = B
-      renderBoard()
-    }else{
-      processMatches()
-    }
-  }, 100)
+    setTimeout(() => {
+      for(let y=0; y<SIZE; y++){
+        for(let x=0; x<SIZE; x++){
+          const cell = cells[y][x]
+          if(cell) cell.classList.remove("drop-in")
+        }
+      }
+      resolve()
+    }, 300)
+  })
+}
+
+function sleep(ms){
+  return new Promise(resolve => setTimeout(resolve, ms))
 }
 
 
@@ -312,7 +403,7 @@ function checkMatches(){
   for(let y=0; y<SIZE; y++){
     let count = 1
     for(let x=1; x<SIZE; x++){
-      if(board[y][x] === board[y][x-1]){
+      if(typeof board[y][x] === "string" && typeof board[y][x-1] === "string" && board[y][x] === board[y][x-1]){
         count++
       }else{
         if(count >= 3){
@@ -333,7 +424,7 @@ function checkMatches(){
   for(let x=0; x<SIZE; x++){
     let count = 1
     for(let y=1; y<SIZE; y++){
-      if(board[y][x] === board[y-1][x]){
+      if(typeof board[y][x] === "string" && typeof board[y-1][x] === "string" && board[y][x] === board[y-1][x]){
         count++
       }else{
         if(count >= 3){
@@ -352,56 +443,6 @@ function checkMatches(){
   }
   
   return matches
-}
-
-
-// ================= PROCESS MATCH =================
-
-function processMatches(){
-  const matches = MatchDetection.getMatches(board)
-  
-  if(matches.length === 0){
-    checkWin()
-    if(!hasPossibleMoves()){
-      shuffleBoard()
-    }
-    return
-  }
-  
-  matches.forEach(match => {
-    let specialCell = null
-    
-    if(match.type === "rocket") specialCell = match.cells[1]
-    if(match.type === "color") specialCell = match.cells[2]
-    if(match.type === "bomb") specialCell = match.cells[0]
-    
-    match.cells.forEach(c => {
-      if(specialCell && c.x === specialCell.x && c.y === specialCell.y) return
-      
-      let cell = board[c.y][c.x]
-      
-      if(typeof cell === "object" && cell !== null){
-        Specials.activate(c.x, c.y)
-      }
-      
-      score += 50
-      board[c.y][c.x] = null
-    })
-    
-    if(specialCell){
-      board[specialCell.y][specialCell.x] = {
-        color: randomColor(),
-        special: match.type,
-        type: "special"  // ← для совместимости с specials.js
-      }
-    }
-  })
-  
-  drop()
-  spawnNew()
-  renderBoard()
-  
-  setTimeout(processMatches, 150)
 }
 
 
@@ -645,4 +686,4 @@ function animateCoins(){
     
     setTimeout(() => coin.remove(), 900)
   }
-     }
+}
