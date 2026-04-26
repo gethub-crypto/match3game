@@ -229,7 +229,7 @@ z-index:10000;
 
   }
 
-/* Анимация удаления */
+/* Анимация удаления обычных фишек */
 @keyframes matchPop {
   0% { transform: scale(1); opacity: 1; }
   50% { transform: scale(1.3); opacity: 0.5; background: white !important; }
@@ -238,11 +238,32 @@ z-index:10000;
 
 .match-pop {
   animation: matchPop 0.4s ease-out forwards;
-  z-index: 10;
-  position: relative;
 }
 
-/* Анимация падения */
+/* Анимация вспышки спец-ячейки */
+@keyframes specialFlash {
+  0% { transform: scale(1); filter: brightness(1); }
+  50% { transform: scale(1.5); filter: brightness(3); }
+  100% { transform: scale(0); filter: brightness(0); }
+}
+
+.special-flash {
+  animation: specialFlash 0.5s ease-out forwards;
+  z-index: 10;
+}
+
+/* Волна от спец-эффекта */
+@keyframes specialWave {
+  0% { transform: scale(1); filter: brightness(1); }
+  30% { transform: scale(1.3); filter: brightness(2); background: gold !important; }
+  100% { transform: scale(0); filter: brightness(0.5); }
+}
+
+.special-wave {
+  animation: specialWave 0.5s ease-out forwards;
+}
+
+/* Анимация падения новых фишек */
 @keyframes dropIn {
   0% { transform: translateY(-50px); opacity: 0; }
   100% { transform: translateY(0); opacity: 1; }
@@ -252,13 +273,22 @@ z-index:10000;
   animation: dropIn 0.3s ease-out;
 }
 
-/* Анимация спец-эффектов */
-@keyframes specialActivate {
-  0% { transform: scale(0.5); filter: brightness(2); }
-  50% { transform: scale(1.5); filter: brightness(1.5); }
-  100% { transform: scale(0); filter: brightness(0); }
+/* Для самой клетки (базовые стили) */
+.cell {
+  transition: transform 0.2s, background 0.2s;
+  position: relative;
 }
 
-.special-activate {
-  animation: specialActivate 0.5s ease-out forwards;
+.cell.selected {
+  transform: scale(1.1);
+  box-shadow: 0 0 10px white;
 }
+
+.cell.hint {
+  animation: hintPulse 0.8s infinite alternate;
+}
+
+@keyframes hintPulse {
+  from { transform: scale(1); box-shadow: 0 0 5px yellow; }
+  to { transform: scale(1.1); box-shadow: 0 0 15px yellow; }
+  }
