@@ -8,6 +8,10 @@ const Specials = {
     renderBoard()
   },
 
+  delay(ms){
+    return new Promise(resolve => setTimeout(resolve, ms))
+  },
+
   // ===== АКТИВАЦИЯ СПЕЦА С ЗАДЕРЖКОЙ =====
   async activateWithDelay(x, y, color = null){
     const cell = board[y][x]
@@ -25,7 +29,7 @@ const Specials = {
     // Визуальный эффект перед удалением
     await this.showSpecialEffect(x, y, specialType)
     
-    // Пауза 300-500мс
+    // Пауза 400мс
     await this.delay(400)
     
     // Удаляем спец-шар
@@ -44,17 +48,25 @@ const Specials = {
   
   // Визуальный эффект перед активацией
   async showSpecialEffect(x, y, type){
+    if(!cells[y] || !cells[y][x]) return
+    
     const el = cells[y][x]
     
     if(type === "rocket"){
       el.classList.add("specialRocket")
-      setTimeout(() => el.classList.remove("specialRocket"), 300)
+      setTimeout(() => {
+        if(cells[y] && cells[y][x]) cells[y][x].classList.remove("specialRocket")
+      }, 300)
     } else if(type === "bomb"){
       el.classList.add("specialBomb")
-      setTimeout(() => el.classList.remove("specialBomb"), 300)
+      setTimeout(() => {
+        if(cells[y] && cells[y][x]) cells[y][x].classList.remove("specialBomb")
+      }, 300)
     } else if(type === "color"){
       el.classList.add("specialRainbow")
-      setTimeout(() => el.classList.remove("specialRainbow"), 300)
+      setTimeout(() => {
+        if(cells[y] && cells[y][x]) cells[y][x].classList.remove("specialRainbow")
+      }, 300)
     }
     
     await this.delay(150)
@@ -66,11 +78,15 @@ const Specials = {
     for(let i=0; i<SIZE; i++){
       if(cells[y] && cells[y][i]){
         cells[y][i].classList.add("rocketLine")
-        setTimeout(() => cells[y][i]?.classList.remove("rocketLine"), 350)
+        setTimeout(() => {
+          if(cells[y] && cells[y][i]) cells[y][i].classList.remove("rocketLine")
+        }, 350)
       }
       if(cells[i] && cells[i][x]){
         cells[i][x].classList.add("rocketLine")
-        setTimeout(() => cells[i][x]?.classList.remove("rocketLine"), 350)
+        setTimeout(() => {
+          if(cells[i] && cells[i][x]) cells[i][x].classList.remove("rocketLine")
+        }, 350)
       }
     }
     
@@ -78,8 +94,8 @@ const Specials = {
     
     // Очистка ряда и колонки
     for(let i=0; i<SIZE; i++){
-      if(board[y][i]) board[y][i] = null
-      if(board[i][x]) board[i][x] = null
+      if(board[y] && board[y][i]) board[y][i] = null
+      if(board[i] && board[i][x]) board[i][x] = null
     }
     
     renderBoard()
@@ -93,7 +109,9 @@ const Specials = {
       for(let xx=x-1; xx<=x+1; xx++){
         if(xx>=0 && yy>=0 && xx<SIZE && yy<SIZE && cells[yy] && cells[yy][xx]){
           cells[yy][xx].classList.add("bombBlast")
-          setTimeout(() => cells[yy][xx]?.classList.remove("bombBlast"), 350)
+          setTimeout(() => {
+            if(cells[yy] && cells[yy][xx]) cells[yy][xx].classList.remove("bombBlast")
+          }, 350)
         }
       }
     }
@@ -104,7 +122,7 @@ const Specials = {
     for(let yy=y-1; yy<=y+1; yy++){
       for(let xx=x-1; xx<=x+1; xx++){
         if(xx>=0 && yy>=0 && xx<SIZE && yy<SIZE){
-          board[yy][xx] = null
+          if(board[yy] && board[yy][xx] !== undefined) board[yy][xx] = null
         }
       }
     }
@@ -120,7 +138,7 @@ const Specials = {
     if(!targetColor){
       for(let yy=0; yy<SIZE; yy++){
         for(let xx=0; xx<SIZE; xx++){
-          const cell = board[yy][xx]
+          const cell = board[yy]?.[xx]
           if(typeof cell === "string"){
             targetColor = cell
             break
@@ -139,7 +157,7 @@ const Specials = {
     // Радужная вспышка
     for(let yy=0; yy<SIZE; yy++){
       for(let xx=0; xx<SIZE; xx++){
-        const cell = board[yy][xx]
+        const cell = board[yy]?.[xx]
         let cellColor = null
         
         if(typeof cell === "string") cellColor = cell
@@ -147,7 +165,9 @@ const Specials = {
         
         if(cellColor === targetColor && cells[yy] && cells[yy][xx]){
           cells[yy][xx].classList.add("rainbowFlash")
-          setTimeout(() => cells[yy][xx]?.classList.remove("rainbowFlash"), 400)
+          setTimeout(() => {
+            if(cells[yy] && cells[yy][xx]) cells[yy][xx].classList.remove("rainbowFlash")
+          }, 400)
         }
       }
     }
@@ -157,7 +177,7 @@ const Specials = {
     // Удаление всех шариков выбранного цвета
     for(let yy=0; yy<SIZE; yy++){
       for(let xx=0; xx<SIZE; xx++){
-        const cell = board[yy][xx]
+        const cell = board[yy]?.[xx]
         
         if(typeof cell === "string" && cell === targetColor){
           board[yy][xx] = null
@@ -171,14 +191,10 @@ const Specials = {
     renderBoard()
     await this.delay(150)
   },
-  
-  delay(ms){
-    return new Promise(resolve => setTimeout(resolve, ms))
-  },
 
   // ===== ОРИГИНАЛЬНЫЕ МЕТОДЫ (для обратной совместимости) =====
   activate(x, y, color = null){
-    const cell = board[y][x]
+    const cell = board[y]?.[x]
     if(!cell) return
     
     const isSpecial = (cell.type === "special") || (cell.special !== undefined)
@@ -203,8 +219,8 @@ const Specials = {
 
   rocket(x, y){
     for(let i=0; i<SIZE; i++){
-      if(board[y]) board[y][i] = null
-      if(board[i]) board[i][x] = null
+      if(board[y] && board[y][i]) board[y][i] = null
+      if(board[i] && board[i][x]) board[i][x] = null
     }
   },
 
@@ -212,7 +228,7 @@ const Specials = {
     for(let yy=y-1; yy<=y+1; yy++){
       for(let xx=x-1; xx<=x+1; xx++){
         if(xx>=0 && yy>=0 && xx<SIZE && yy<SIZE){
-          board[yy][xx] = null
+          if(board[yy] && board[yy][xx] !== undefined) board[yy][xx] = null
         }
       }
     }
@@ -224,7 +240,7 @@ const Specials = {
     if(!targetColor){
       for(let yy=0; yy<SIZE; yy++){
         for(let xx=0; xx<SIZE; xx++){
-          const cell = board[yy][xx]
+          const cell = board[yy]?.[xx]
           if(typeof cell === "string"){
             targetColor = cell
             break
@@ -242,7 +258,7 @@ const Specials = {
     
     for(let yy=0; yy<SIZE; yy++){
       for(let xx=0; xx<SIZE; xx++){
-        const cell = board[yy][xx]
+        const cell = board[yy]?.[xx]
         
         if(typeof cell === "string" && cell === targetColor){
           board[yy][xx] = null
