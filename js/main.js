@@ -869,4 +869,4 @@ function animateCoins(){
     
     setTimeout(() => coin.remove(), 900)
   }
-    }
+        }
