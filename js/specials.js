@@ -14,7 +14,7 @@ const Specials = {
 
   // ===== АКТИВАЦИЯ СПЕЦА С ЗАДЕРЖКОЙ =====
   async activateWithDelay(x, y, color = null){
-    const cell = board[y][x]
+    const cell = board[y]?.[x]
     
     if(!cell) return
     
@@ -26,13 +26,9 @@ const Specials = {
     
     if(!specialType) return
     
-    // Визуальный эффект перед удалением
     await this.showSpecialEffect(x, y, specialType)
-    
-    // Пауза 400мс
     await this.delay(400)
     
-    // Удаляем спец-шар
     board[y][x] = null
     
     const map = {
@@ -46,53 +42,84 @@ const Specials = {
     }
   },
   
-  // Визуальный эффект перед активацией
   async showSpecialEffect(x, y, type){
     if(!cells[y] || !cells[y][x]) return
     
     const el = cells[y][x]
     
+    el.classList.remove("specialRocket", "specialBomb", "specialRainbow", "matchFlash")
+    void el.offsetHeight
+    
     if(type === "rocket"){
       el.classList.add("specialRocket")
+      for(let i=0; i<3; i++){
+        setTimeout(() => {
+          if(cells[y]?.[x]) {
+            cells[y][x].style.transform = `translate(${Math.random() * 4 - 2}px, ${Math.random() * 4 - 2}px)`
+          }
+        }, i * 50)
+      }
       setTimeout(() => {
-        if(cells[y] && cells[y][x]) cells[y][x].classList.remove("specialRocket")
-      }, 300)
-    } else if(type === "bomb"){
+        if(cells[y] && cells[y][x]) {
+          cells[y][x].style.transform = ""
+          cells[y][x].classList.remove("specialRocket")
+        }
+      }, 350)
+    } 
+    else if(type === "bomb"){
       el.classList.add("specialBomb")
+      el.style.animation = "bombCharge 0.3s ease-out 3"
       setTimeout(() => {
-        if(cells[y] && cells[y][x]) cells[y][x].classList.remove("specialBomb")
-      }, 300)
-    } else if(type === "color"){
+        if(cells[y] && cells[y][x]) {
+          cells[y][x].style.animation = ""
+          cells[y][x].classList.remove("specialBomb")
+        }
+      }, 350)
+    } 
+    else if(type === "color"){
       el.classList.add("specialRainbow")
+      el.style.animation = "rainbowCharge 0.4s ease-out 2"
       setTimeout(() => {
-        if(cells[y] && cells[y][x]) cells[y][x].classList.remove("specialRainbow")
-      }, 300)
+        if(cells[y] && cells[y][x]) {
+          cells[y][x].style.animation = ""
+          cells[y][x].classList.remove("specialRainbow")
+        }
+      }, 400)
     }
     
-    await this.delay(150)
+    await this.delay(200)
   },
 
   // ===== РАКЕТА С ЗАДЕРЖКОЙ =====
   async rocketWithDelay(x, y){
-    // Анимация линии
+    for(let i=0; i<SIZE; i++){
+      if(cells[y] && cells[y][i]) {
+        cells[y][i].classList.remove("rocketLine", "matchFlash")
+      }
+      if(cells[i] && cells[i][x]) {
+        cells[i][x].classList.remove("rocketLine", "matchFlash")
+      }
+    }
+    
+    void document.body.offsetHeight
+    
     for(let i=0; i<SIZE; i++){
       if(cells[y] && cells[y][i]){
         cells[y][i].classList.add("rocketLine")
         setTimeout(() => {
           if(cells[y] && cells[y][i]) cells[y][i].classList.remove("rocketLine")
-        }, 350)
+        }, 400)
       }
       if(cells[i] && cells[i][x]){
         cells[i][x].classList.add("rocketLine")
         setTimeout(() => {
           if(cells[i] && cells[i][x]) cells[i][x].classList.remove("rocketLine")
-        }, 350)
+        }, 400)
       }
     }
     
-    await this.delay(300)
+    await this.delay(350)
     
-    // Очистка ряда и колонки
     for(let i=0; i<SIZE; i++){
       if(board[y] && board[y][i]) board[y][i] = null
       if(board[i] && board[i][x]) board[i][x] = null
@@ -104,21 +131,52 @@ const Specials = {
 
   // ===== БОМБА С ЗАДЕРЖКОЙ =====
   async bombWithDelay(x, y){
-    // Анимация взрыва 3x3
+    for(let yy=y-1; yy<=y+1; yy++){
+      for(let xx=x-1; xx<=x+1; xx++){
+        if(xx>=0 && yy>=0 && xx<SIZE && yy<SIZE && cells[yy] && cells[yy][xx]){
+          cells[yy][xx].classList.remove("bombBlast", "matchFlash", "bombShockwave")
+        }
+      }
+    }
+    
+    void document.body.offsetHeight
+    
+    const centerEl = cells[y]?.[x]
+    if(centerEl) {
+      centerEl.classList.add("bombCore")
+      setTimeout(() => {
+        if(cells[y]?.[x]) cells[y][x].classList.remove("bombCore")
+      }, 200)
+    }
+    
     for(let yy=y-1; yy<=y+1; yy++){
       for(let xx=x-1; xx<=x+1; xx++){
         if(xx>=0 && yy>=0 && xx<SIZE && yy<SIZE && cells[yy] && cells[yy][xx]){
           cells[yy][xx].classList.add("bombBlast")
           setTimeout(() => {
             if(cells[yy] && cells[yy][xx]) cells[yy][xx].classList.remove("bombBlast")
-          }, 350)
+          }, 400)
         }
       }
     }
     
-    await this.delay(300)
+    await this.delay(150)
     
-    // Удаление 3x3
+    for(let yy=y-2; yy<=y+2; yy++){
+      for(let xx=x-2; xx<=x+2; xx++){
+        if(xx>=0 && yy>=0 && xx<SIZE && yy<SIZE && cells[yy] && cells[yy][xx]){
+          if(Math.abs(xx-x) > 1 || Math.abs(yy-y) > 1){
+            cells[yy][xx].classList.add("bombShockwave")
+            setTimeout(() => {
+              if(cells[yy] && cells[yy][xx]) cells[yy][xx].classList.remove("bombShockwave")
+            }, 300)
+          }
+        }
+      }
+    }
+    
+    await this.delay(200)
+    
     for(let yy=y-1; yy<=y+1; yy++){
       for(let xx=x-1; xx<=x+1; xx++){
         if(xx>=0 && yy>=0 && xx<SIZE && yy<SIZE){
@@ -131,7 +189,7 @@ const Specials = {
     await this.delay(150)
   },
 
-  // ===== ЦВЕТНАЯ БОМБА С ЗАДЕРЖКОЙ =====
+  // ===== ЦВЕТНАЯ БОМБА (РАДУГА) С ЗАДЕРЖКОЙ =====
   async colorBombWithDelay(x, y, color = null){
     let targetColor = color
     
@@ -154,7 +212,25 @@ const Specials = {
     
     if(!targetColor) return
     
-    // Радужная вспышка
+    for(let yy=0; yy<SIZE; yy++){
+      for(let xx=0; xx<SIZE; xx++){
+        if(cells[yy] && cells[yy][xx]) {
+          cells[yy][xx].classList.remove("rainbowFlash", "matchFlash", "rainbowPulse")
+        }
+      }
+    }
+    
+    void document.body.offsetHeight
+    
+    const centerEl = cells[y]?.[x]
+    if(centerEl) {
+      centerEl.classList.add("rainbowCore")
+      setTimeout(() => {
+        if(cells[y]?.[x]) cells[y][x].classList.remove("rainbowCore")
+      }, 300)
+    }
+    
+    const targetCells = []
     for(let yy=0; yy<SIZE; yy++){
       for(let xx=0; xx<SIZE; xx++){
         const cell = board[yy]?.[xx]
@@ -164,17 +240,36 @@ const Specials = {
         else if(typeof cell === "object" && cell !== null) cellColor = cell.color
         
         if(cellColor === targetColor && cells[yy] && cells[yy][xx]){
+          targetCells.push({x: xx, y: yy})
+        }
+      }
+    }
+    
+    for(let i=0; i<targetCells.length; i++){
+      const {x: xx, y: yy} = targetCells[i]
+      setTimeout(() => {
+        if(cells[yy] && cells[yy][xx]) {
           cells[yy][xx].classList.add("rainbowFlash")
           setTimeout(() => {
             if(cells[yy] && cells[yy][xx]) cells[yy][xx].classList.remove("rainbowFlash")
           }, 400)
         }
+      }, i * 15)
+    }
+    
+    for(let yy=0; yy<SIZE; yy++){
+      for(let xx=0; xx<SIZE; xx++){
+        if(cells[yy] && cells[yy][xx]) {
+          cells[yy][xx].classList.add("rainbowPulse")
+          setTimeout(() => {
+            if(cells[yy] && cells[yy][xx]) cells[yy][xx].classList.remove("rainbowPulse")
+          }, 500)
+        }
       }
     }
     
-    await this.delay(350)
+    await this.delay(400)
     
-    // Удаление всех шариков выбранного цвета
     for(let yy=0; yy<SIZE; yy++){
       for(let xx=0; xx<SIZE; xx++){
         const cell = board[yy]?.[xx]
@@ -269,4 +364,4 @@ const Specials = {
       }
     }
   }
-      }
+           }
