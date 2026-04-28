@@ -269,6 +269,9 @@ function swap(a, b){
       
       await processMatchesWithDelay()
       
+      updateHUD()
+      checkWin()
+      
       isProcessingSpecial = false
       gameLocked = false
       return
@@ -286,6 +289,9 @@ function swap(a, b){
       renderBoard()
       
       await processMatchesWithDelay()
+      
+      updateHUD()
+      checkWin()
       
       isProcessingSpecial = false
       gameLocked = false
@@ -392,17 +398,17 @@ async function processMatchesWithDelay(){
     if(match.type === "color") specialCell = match.cells[2]
     if(match.type === "bomb") specialCell = match.cells[0]
     
-    match.cells.forEach(c => {
-      if(specialCell && c.x === specialCell.x && c.y === specialCell.y) return
+    match.cells.forEach(cellPos => {
+      if(specialCell && cellPos.x === specialCell.x && cellPos.y === specialCell.y) return
       
-      let cell = board[c.y][c.x]
+      let cell = board[cellPos.y][cellPos.x]
       
       if(typeof cell === "object" && cell !== null){
-        Specials.activate(c.x, c.y)
+        Specials.activate(cellPos.x, cellPos.y)
       }
       
       score += 50
-      board[c.y][c.x] = null
+      board[cellPos.y][cellPos.x] = null
     })
     
     if(specialCell){
@@ -422,6 +428,7 @@ async function processMatchesWithDelay(){
   await spawnNewWithDelay(120)
   renderBoard()
   
+  updateHUD()
   await processMatchesWithDelay()
 }
 
@@ -483,11 +490,13 @@ async function spawnNewWithDelay(baseDelay = 120){
 // ================= ВИЗУАЛЬНЫЙ ЭФФЕКТ ДЛЯ МАТЧА =================
 
 async function showMatchEffect(match){
-  match.cells.forEach(cell => {
-    const el = cells[cell.y][cell.x]
+  // Подсветка ячеек матча
+  match.cells.forEach(cellPos => {
+    const el = cells[cellPos.y]?.[cellPos.x]
     if(el) el.classList.add("matchFlash")
   })
   
+  // Спец-эффект в зависимости от типа
   if(match.type === "rocket"){
     await showRocketEffect(match.cells)
   } else if(match.type === "bomb"){
@@ -498,42 +507,53 @@ async function showMatchEffect(match){
   
   await delay(200)
   
-  match.cells.forEach(cell => {
-    const el = cells[cell.y][cell.x]
+  // Убираем подсветку
+  match.cells.forEach(cellPos => {
+    const el = cells[cellPos.y]?.[cellPos.x]
     if(el) el.classList.remove("matchFlash")
   })
 }
 
-async function showRocketEffect(cells){
-  const center = cells[Math.floor(cells.length / 2)]
+async function showRocketEffect(matchCells){
+  if(!matchCells || matchCells.length === 0) return
+  
+  const center = matchCells[Math.floor(matchCells.length / 2)]
   
   for(let i=0; i<SIZE; i++){
     if(cells[center.y] && cells[center.y][i]){
-      const el = cells[center.y][i]
-      el.classList.add("rocketLine")
-      setTimeout(() => el.classList.remove("rocketLine"), 300)
+      cells[center.y][i].classList.add("rocketLine")
+      setTimeout(() => {
+        if(cells[center.y] && cells[center.y][i]) 
+          cells[center.y][i].classList.remove("rocketLine")
+      }, 300)
     }
     if(cells[i] && cells[i][center.x]){
-      const el = cells[i][center.x]
-      el.classList.add("rocketLine")
-      setTimeout(() => el.classList.remove("rocketLine"), 300)
+      cells[i][center.x].classList.add("rocketLine")
+      setTimeout(() => {
+        if(cells[i] && cells[i][center.x])
+          cells[i][center.x].classList.remove("rocketLine")
+      }, 300)
     }
   }
   
   await delay(250)
 }
 
-async function showBombEffect(cells){
-  const center = cells[0]
+async function showBombEffect(matchCells){
+  if(!matchCells || matchCells.length === 0) return
+  
+  const center = matchCells[0]
   
   for(let dy=-1; dy<=1; dy++){
     for(let dx=-1; dx<=1; dx++){
       const x = center.x + dx
       const y = center.y + dy
       if(x>=0 && x<SIZE && y>=0 && y<SIZE && cells[y] && cells[y][x]){
-        const el = cells[y][x]
-        el.classList.add("bombBlast")
-        setTimeout(() => el.classList.remove("bombBlast"), 300)
+        cells[y][x].classList.add("bombBlast")
+        setTimeout(() => {
+          if(cells[y] && cells[y][x])
+            cells[y][x].classList.remove("bombBlast")
+        }, 300)
       }
     }
   }
@@ -547,9 +567,11 @@ async function showRainbowEffect(){
       const cell = board[y][x]
       const color = typeof cell === "string" ? cell : cell?.color
       if(color && cells[y] && cells[y][x]){
-        const el = cells[y][x]
-        el.classList.add("rainbowFlash")
-        setTimeout(() => el.classList.remove("rainbowFlash"), 400)
+        cells[y][x].classList.add("rainbowFlash")
+        setTimeout(() => {
+          if(cells[y] && cells[y][x])
+            cells[y][x].classList.remove("rainbowFlash")
+        }, 400)
       }
     }
   }
@@ -577,17 +599,17 @@ function processMatches(){
     if(match.type === "color") specialCell = match.cells[2]
     if(match.type === "bomb") specialCell = match.cells[0]
     
-    match.cells.forEach(c => {
-      if(specialCell && c.x === specialCell.x && c.y === specialCell.y) return
+    match.cells.forEach(cellPos => {
+      if(specialCell && cellPos.x === specialCell.x && cellPos.y === specialCell.y) return
       
-      let cell = board[c.y][c.x]
+      let cell = board[cellPos.y][cellPos.x]
       
       if(typeof cell === "object" && cell !== null){
-        Specials.activate(c.x, c.y)
+        Specials.activate(cellPos.x, cellPos.y)
       }
       
       score += 50
-      board[c.y][c.x] = null
+      board[cellPos.y][cellPos.x] = null
     })
     
     if(specialCell){
@@ -847,4 +869,4 @@ function animateCoins(){
     
     setTimeout(() => coin.remove(), 900)
   }
-}
+    }
