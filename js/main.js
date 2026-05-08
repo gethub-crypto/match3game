@@ -9,6 +9,7 @@ let collected = 0
 
 let levelFinished = false
 let gameLocked = false
+let isAnimating = false  // НОВАЯ ПЕРЕМЕННАЯ ДЛЯ БЛОКИРОВКИ КЛИКОВ
 
 let hintTimer = null
 let isProcessingSpecial = false
@@ -51,6 +52,7 @@ function startLevel(){
 function initLevel(){
   levelFinished = false
   gameLocked = false
+  isAnimating = false
   
   levelData = Levels.get(currentLevel)
   
@@ -149,6 +151,7 @@ function addSwipe(cell, x, y){
   let startY = 0
   
   cell.addEventListener("touchstart", e => {
+    if(gameLocked || isAnimating) return  // БЛОКИРУЕМ НАЧАЛО СВАЙПА
     startX = e.touches[0].clientX
     startY = e.touches[0].clientY
     selected = {x, y}
@@ -156,7 +159,7 @@ function addSwipe(cell, x, y){
   })
   
   cell.addEventListener("touchend", e => {
-    if(gameLocked) return
+    if(gameLocked || isAnimating) return  // БЛОКИРУЕМ ОКОНЧАНИЕ СВАЙПА
     
     const endX = e.changedTouches[0].clientX
     const endY = e.changedTouches[0].clientY
@@ -206,7 +209,7 @@ function clearHighlight(){
 // ================= CLICK =================
 
 function onCellClick(x, y){
-  if(gameLocked) return
+  if(gameLocked || isAnimating) return  // БЛОКИРУЕМ КЛИКИ ВО ВРЕМЯ АНИМАЦИИ
   if(x<0 || x>=SIZE || y<0 || y>=SIZE) return
   
   if(!selected){
@@ -242,10 +245,10 @@ function onCellClick(x, y){
 }
 
 
-// ================= SWAP (МОДИФИЦИРОВАН) =================
+// ================= SWAP (ИСПРАВЛЕН) =================
 
 function swap(a, b){
-  if(gameLocked || isProcessingSpecial) return
+  if(gameLocked || isProcessingSpecial || isAnimating) return  // ДОБАВЛЕНА ПРОВЕРКА isAnimating
   
   let A = board[a.y][a.x]
   let B = board[b.y][b.x]
@@ -256,9 +259,12 @@ function swap(a, b){
   renderBoard()
   
   setTimeout(async () => {
+    if(isAnimating) return  // ЕЩЕ ОДНА ПРОВЕРКА
+    
     if(typeof A === "object" && A !== null && A.special){
       isProcessingSpecial = true
       gameLocked = true
+      isAnimating = true  // ВКЛЮЧАЕМ БЛОКИРОВКУ
       
       await Specials.activateWithDelay(b.x, b.y)
       
@@ -274,12 +280,14 @@ function swap(a, b){
       
       isProcessingSpecial = false
       gameLocked = false
+      isAnimating = false  // ВЫКЛЮЧАЕМ БЛОКИРОВКУ
       return
     }
     
     if(typeof B === "object" && B !== null && B.special){
       isProcessingSpecial = true
       gameLocked = true
+      isAnimating = true  // ВКЛЮЧАЕМ БЛОКИРОВКУ
       
       await Specials.activateWithDelay(a.x, a.y)
       
@@ -295,6 +303,7 @@ function swap(a, b){
       
       isProcessingSpecial = false
       gameLocked = false
+      isAnimating = false  // ВЫКЛЮЧАЕМ БЛОКИРОВКУ
       return
     }
     
@@ -375,61 +384,70 @@ function checkMatches(){
 }
 
 
-// ================= НОВАЯ ФУНКЦИЯ: ОБРАБОТКА МАТЧЕЙ С ЗАДЕРЖКОЙ =================
+// ================= НОВАЯ ФУНКЦИЯ: ОБРАБОТКА МАТЧЕЙ С ЗАДЕРЖКОЙ (ИСПРАВЛЕНА) =================
 
 async function processMatchesWithDelay(){
-  const matches = MatchDetection.getMatches(board)
+  if(isAnimating) return  // БЛОКИРУЕМ РЕКУРСИЮ ВО ВРЕМЯ АНИМАЦИИ
   
-  if(matches.length === 0){
-    checkWin()
-    if(!hasPossibleMoves()){
-      shuffleBoard()
-    }
-    return
-  }
+  isAnimating = true  // ВКЛЮЧАЕМ БЛОКИРОВКУ
   
-  for(const match of matches){
-    await showMatchEffect(match)
-    await delay(350)
+  try {
+    const matches = MatchDetection.getMatches(board)
     
-    let specialCell = null
-    
-    if(match.type === "rocket") specialCell = match.cells[1]
-    if(match.type === "color") specialCell = match.cells[2]
-    if(match.type === "bomb") specialCell = match.cells[0]
-    
-    match.cells.forEach(cellPos => {
-      if(specialCell && cellPos.x === specialCell.x && cellPos.y === specialCell.y) return
-      
-      let cell = board[cellPos.y][cellPos.x]
-      
-      if(typeof cell === "object" && cell !== null){
-        Specials.activate(cellPos.x, cellPos.y)
+    if(matches.length === 0){
+      checkWin()
+      if(!hasPossibleMoves()){
+        shuffleBoard()
       }
-      
-      score += 50
-      board[cellPos.y][cellPos.x] = null
-    })
+      isAnimating = false
+      return
+    }
     
-    if(specialCell){
-      board[specialCell.y][specialCell.x] = {
-        color: randomColor(),
-        special: match.type,
-        type: "special"
+    for(const match of matches){
+      await showMatchEffect(match)
+      await delay(350)
+      
+      let specialCell = null
+      
+      if(match.type === "rocket") specialCell = match.cells[1]
+      if(match.type === "color") specialCell = match.cells[2]
+      if(match.type === "bomb") specialCell = match.cells[0]
+      
+      match.cells.forEach(cellPos => {
+        if(specialCell && cellPos.x === specialCell.x && cellPos.y === specialCell.y) return
+        
+        let cell = board[cellPos.y][cellPos.x]
+        
+        if(typeof cell === "object" && cell !== null){
+          Specials.activate(cellPos.x, cellPos.y)
+        }
+        
+        score += 50
+        board[cellPos.y][cellPos.x] = null
+      })
+      
+      if(specialCell){
+        board[specialCell.y][specialCell.x] = {
+          color: randomColor(),
+          special: match.type,
+          type: "special"
+        }
       }
     }
+    
+    renderBoard()
+    
+    await dropWithDelay(120)
+    renderBoard()
+    
+    await spawnNewWithDelay(120)
+    renderBoard()
+    
+    updateHUD()
+    await processMatchesWithDelay()
+  } finally {
+    isAnimating = false  // ВЫКЛЮЧАЕМ БЛОКИРОВКУ (достигается только если рекурсия не продолжилась)
   }
-  
-  renderBoard()
-  
-  await dropWithDelay(120)
-  renderBoard()
-  
-  await spawnNewWithDelay(120)
-  renderBoard()
-  
-  updateHUD()
-  await processMatchesWithDelay()
 }
 
 
@@ -579,9 +597,13 @@ async function showRainbowEffect(){
 }
 
 
-// ================= PROCESS MATCH (ОБЫЧНЫЙ) =================
+// ================= PROCESS MATCH (ОБЫЧНЫЙ) (ИСПРАВЛЕН) =================
 
 function processMatches(){
+  if(isAnimating || gameLocked) return  // БЛОКИРУЕМ ПОВТОРНЫЙ ВЫЗОВ
+  
+  isAnimating = true  // ВКЛЮЧАЕМ БЛОКИРОВКУ
+  
   const matches = MatchDetection.getMatches(board)
   
   if(matches.length === 0){
@@ -589,6 +611,7 @@ function processMatches(){
     if(!hasPossibleMoves()){
       shuffleBoard()
     }
+    isAnimating = false
     return
   }
   
@@ -625,7 +648,9 @@ function processMatches(){
   spawnNew()
   renderBoard()
   
-  setTimeout(processMatches, 100)
+  setTimeout(() => {
+    processMatches()
+  }, 100)
 }
 
 
@@ -668,6 +693,8 @@ function spawnNew(){
 // ================= POSSIBLE MOVES =================
 
 function hasPossibleMoves(){
+  if(isAnimating) return false  // НЕ ПРОВЕРЯЕМ ВО ВРЕМЯ АНИМАЦИИ
+  
   for(let y=0; y<SIZE; y++){
     for(let x=0; x<SIZE; x++){
       if(x < SIZE-1){
@@ -702,6 +729,8 @@ function swapTest(x1, y1, x2, y2){
 // ================= SHUFFLE =================
 
 function shuffleBoard(){
+  if(isAnimating) return  // НЕ ПЕРЕМЕШИВАЕМ ВО ВРЕМЯ АНИМАЦИИ
+  
   for(let y=0; y<SIZE; y++){
     for(let x=0; x<SIZE; x++){
       board[y][x] = randomColor()
@@ -719,6 +748,8 @@ function startHintTimer(){
 }
 
 function showHint(){
+  if(isAnimating || gameLocked) return  // НЕ ПОКАЗЫВАЕМ ПОДСКАЗКИ ВО ВРЕМЯ АНИМАЦИИ
+  
   for(let y=0; y<SIZE; y++){
     for(let x=0; x<SIZE; x++){
       if(x < SIZE-1){
@@ -773,7 +804,7 @@ function updateHUD(){
 // ================= WIN CHECK =================
 
 function checkWin(){
-  if(levelFinished) return
+  if(levelFinished || isAnimating) return  // НЕ ПРОВЕРЯЕМ ВО ВРЕМЯ АНИМАЦИИ
   
   if(levelData.type === "score" && score >= levelData.target){
     winLevel()
@@ -851,6 +882,8 @@ function updateCoinsUI(){
 }
 
 function animateCoins(){
+  if(isAnimating) return  // НЕ ЗАПУСКАЕМ АНИМАЦИЮ МОНЕТ ВО ВРЕМЯ ДРУГИХ АНИМАЦИЙ
+  
   const coinsEl = document.getElementById("coinsDisplay")
   const rect = coinsEl.getBoundingClientRect()
   
@@ -869,4 +902,4 @@ function animateCoins(){
     
     setTimeout(() => coin.remove(), 900)
   }
-}
+                }
