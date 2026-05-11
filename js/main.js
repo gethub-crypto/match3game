@@ -154,7 +154,6 @@ function addSwipe(cell, x, y){
   let startY = 0
   
   cell.addEventListener("touchstart", e => {
-    // БЛОКИРУЕМ ВВОД ЕСЛИ ИДЁТ АНИМАЦИЯ
     if(gameLocked || isAnimating || isProcessingSpecial) return
     
     startX = e.touches[0].clientX
@@ -164,7 +163,6 @@ function addSwipe(cell, x, y){
   })
   
   cell.addEventListener("touchend", e => {
-    // БЛОКИРУЕМ ВВОД ЕСЛИ ИДЁТ АНИМАЦИЯ
     if(gameLocked || isAnimating || isProcessingSpecial) return
     
     const endX = e.changedTouches[0].clientX
@@ -215,7 +213,6 @@ function clearHighlight(){
 // ================= CLICK (ГЛАВНЫЙ ОБРАБОТЧИК) =================
 
 async function onCellClick(x, y){
-  // ВСЕ ПРОВЕРКИ В ОДНОМ МЕСТЕ
   if(gameLocked || isAnimating || isProcessingSpecial) return
   if(x<0 || x>=SIZE || y<0 || y>=SIZE) return
   
@@ -256,20 +253,16 @@ async function onCellClick(x, y){
   // ПРОВЕРЯЕМ SPECIAL TILES ПОСЛЕ SWAP
   let hasSpecial = false
   
-  if(typeof A === "object" && A !== null && A.special){
-    // Special A переместился в позицию B
-    if(board[b.y] && board[b.y][b.x]){
-      await Specials.activateWithDelay(b.x, b.y)
-    }
+  // Проверяем special на позиции B (то что пришло из A)
+  if(board[b.y][b.x] && typeof board[b.y][b.x] === "object" && board[b.y][b.x] !== null){
+    await Specials.activateWithDelay(b.x, b.y)
     board[b.y][b.x] = null
     hasSpecial = true
   }
   
-  if(typeof B === "object" && B !== null && B.special){
-    // Special B переместился в позицию A
-    if(board[a.y] && board[a.y][a.x]){
-      await Specials.activateWithDelay(a.x, a.y)
-    }
+  // Проверяем special на позиции A (то что пришло из B)
+  if(!hasSpecial && board[a.y][a.x] && typeof board[a.y][a.x] === "object" && board[a.y][a.x] !== null){
+    await Specials.activateWithDelay(a.x, a.y)
     board[a.y][a.x] = null
     hasSpecial = true
   }
@@ -299,7 +292,6 @@ async function onCellClick(x, y){
     board[b.y][b.x] = B
     renderBoard()
     
-    // Небольшая анимация отката
     await delay(150)
     
     isAnimating = false
@@ -388,7 +380,6 @@ async function processMatchesAsync(){
   const matches = MatchDetection.getMatches(board)
   
   if(matches.length === 0){
-    // Нет матчей - проверяем возможность хода
     if(!hasPossibleMoves()){
       await shuffleBoardAsync()
     }
@@ -397,23 +388,38 @@ async function processMatchesAsync(){
   
   // Обрабатываем все матчи
   for(const match of matches){
-    // Показываем эффект
-    await showMatchEffect(match)
+    
+    // Подсвечиваем ячейки матча
+    match.cells.forEach(cellPos => {
+      const el = cells[cellPos.y]?.[cellPos.x]
+      if(el) el.classList.add("matchFlash")
+    })
+    
+    await delay(200)
     
     let specialCell = null
+    let specialType = null
     
-    if(match.type === "rocket") specialCell = match.cells[1]
-    if(match.type === "color") specialCell = match.cells[2]
-    if(match.type === "bomb") specialCell = match.cells[0]
+    // Определяем где будет создан special
+    if(match.type === "rocket"){
+      specialType = "rocket"
+      specialCell = match.cells[1]
+    } else if(match.type === "bomb"){
+      specialType = "bomb"
+      specialCell = match.cells[0]
+    } else if(match.type === "color"){
+      specialType = "color"
+      specialCell = match.cells[2]
+    }
     
-    // Удаляем обычные ячейки и активируем special
+    // Удаляем ячейки матча
     for(const cellPos of match.cells){
-      // Пропускаем ячейку для создания special
+      // Пропускаем ячейку для special
       if(specialCell && cellPos.x === specialCell.x && cellPos.y === specialCell.y) continue
       
       const cell = board[cellPos.y][cellPos.x]
       
-      // Если это special tile - активируем его
+      // Если в матче была special плитка - активируем её
       if(typeof cell === "object" && cell !== null && cell.special){
         await Specials.activate(cellPos.x, cellPos.y)
       }
@@ -422,59 +428,60 @@ async function processMatchesAsync(){
       board[cellPos.y][cellPos.x] = null
     }
     
-    // Создаём special tile если нужно
-    if(specialCell){
+    // Создаём новую special плитку
+    if(specialCell && specialType){
       board[specialCell.y][specialCell.x] = {
         color: randomColor(),
-        special: match.type,
+        special: specialType,
         type: "special"
       }
     }
+    
+    // Убираем подсветку
+    match.cells.forEach(cellPos => {
+      const el = cells[cellPos.y]?.[cellPos.x]
+      if(el) el.classList.remove("matchFlash")
+    })
     
     renderBoard()
     await delay(300)
   }
   
-  // Gravity и spawn новых плиток
-  await dropWithDelay(120)
-  await spawnNewWithDelay(120)
+  // Gravity и spawn
+  await dropWithDelay(150)
+  await spawnNewWithDelay(150)
   renderBoard()
   await delay(200)
   
   updateHUD()
   
-  // Рекурсивно проверяем новые матчи (каскады)
+  // Проверяем новые матчи (каскады)
   await processMatchesAsync()
 }
 
 
-// ================= УЛУЧШЕННЫЙ DROP =================
+// ================= DROP И SPAWN =================
 
-async function dropWithDelay(baseDelay = 120){
+async function dropWithDelay(baseDelay = 150){
   let changed = false
   
-  // Гравитация - падение вниз
   for(let x=0; x<SIZE; x++){
-    let writePos = SIZE - 1
+    let emptySpaces = 0
     
-    // Сдвигаем существующие плитки вниз
     for(let y=SIZE-1; y>=0; y--){
-      if(board[y][x] !== null){
-        if(writePos !== y){
-          board[writePos][x] = board[y][x]
-          board[y][x] = null
-          changed = true
-        }
-        writePos--
+      if(board[y][x] === null){
+        emptySpaces++
+      } else if(emptySpaces > 0){
+        board[y + emptySpaces][x] = board[y][x]
+        board[y][x] = null
+        changed = true
       }
     }
     
     // Заполняем пустоты сверху новыми плитками
-    for(let y=writePos; y>=0; y--){
-      if(board[y][x] === null){
-        board[y][x] = randomColor()
-        changed = true
-      }
+    for(let y=0; y<emptySpaces; y++){
+      board[y][x] = randomColor()
+      changed = true
     }
   }
   
@@ -484,7 +491,7 @@ async function dropWithDelay(baseDelay = 120){
   }
 }
 
-async function spawnNewWithDelay(baseDelay = 120){
+async function spawnNewWithDelay(baseDelay = 150){
   let changed = false
   
   for(let y=0; y<SIZE; y++){
@@ -506,13 +513,11 @@ async function spawnNewWithDelay(baseDelay = 120){
 // ================= ВИЗУАЛЬНЫЕ ЭФФЕКТЫ =================
 
 async function showMatchEffect(match){
-  // Подсветка ячеек матча
   match.cells.forEach(cellPos => {
     const el = cells[cellPos.y]?.[cellPos.x]
     if(el) el.classList.add("matchFlash")
   })
   
-  // Спец-эффект в зависимости от типа
   if(match.type === "rocket"){
     await showRocketEffect(match.cells)
   } else if(match.type === "bomb"){
@@ -523,7 +528,6 @@ async function showMatchEffect(match){
   
   await delay(200)
   
-  // Убираем подсветку
   match.cells.forEach(cellPos => {
     const el = cells[cellPos.y]?.[cellPos.x]
     if(el) el.classList.remove("matchFlash")
@@ -535,7 +539,6 @@ async function showRocketEffect(matchCells){
   
   const center = matchCells[Math.floor(matchCells.length / 2)]
   
-  // Показываем линии rockets
   for(let i=0; i<SIZE; i++){
     if(cells[center.y] && cells[center.y][i]){
       cells[center.y][i].classList.add("rocketLine")
@@ -561,7 +564,6 @@ async function showBombEffect(matchCells){
   
   const center = matchCells[0]
   
-  // Показываем взрыв в области 3x3
   for(let dy=-1; dy<=1; dy++){
     for(let dx=-1; dx<=1; dx++){
       const x = center.x + dx
@@ -580,7 +582,6 @@ async function showBombEffect(matchCells){
 }
 
 async function showRainbowEffect(){
-  // Подсвечиваем все плитки одного цвета
   for(let y=0; y<SIZE; y++){
     for(let x=0; x<SIZE; x++){
       const cell = board[y][x]
@@ -635,7 +636,6 @@ function swapTest(x1, y1, x2, y2){
 // ================= SHUFFLE =================
 
 async function shuffleBoardAsync(){
-  // Перемешиваем доску пока нет возможных ходов
   do {
     for(let y=0; y<SIZE; y++){
       for(let x=0; x<SIZE; x++){
@@ -649,7 +649,6 @@ async function shuffleBoardAsync(){
 }
 
 function shuffleBoard(){
-  // Синхронная версия для обратной совместимости
   for(let y=0; y<SIZE; y++){
     for(let x=0; x<SIZE; x++){
       board[y][x] = randomColor()
@@ -828,4 +827,4 @@ function animateCoins(){
     
     setTimeout(() => coin.remove(), 900)
   }
-}
+    }
