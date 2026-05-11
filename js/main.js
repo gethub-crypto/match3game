@@ -13,7 +13,6 @@ let gameLocked = false
 let hintTimer = null
 let isProcessingSpecial = false
 
-// ЕДИНАЯ БЛОКИРОВКА ДЛЯ АНИМАЦИЙ
 let isAnimating = false
 
 const SIZE = 8
@@ -231,7 +230,6 @@ async function onCellClick(x, y){
     return
   }
   
-  // БЛОКИРУЕМ ВВОД
   isAnimating = true
   
   const a = {x: selected.x, y: selected.y}
@@ -250,30 +248,26 @@ async function onCellClick(x, y){
   renderBoard()
   await delay(200)
   
-  // ПРОВЕРЯЕМ SPECIAL TILES ПОСЛЕ SWAP
-  let hasSpecial = false
+  // Проверяем special только если игрок САМ свайпнул special плитку
+  let hasSpecialActivated = false
   
-  // Проверяем special на позиции B (то что пришло из A)
-  if(board[b.y][b.x] && typeof board[b.y][b.x] === "object" && board[b.y][b.x] !== null){
+  if(board[b.y][b.x] && typeof board[b.y][b.x] === "object" && board[b.y][b.x] !== null && board[b.y][b.x].special){
     await Specials.activateWithDelay(b.x, b.y)
     board[b.y][b.x] = null
-    hasSpecial = true
+    hasSpecialActivated = true
   }
   
-  // Проверяем special на позиции A (то что пришло из B)
-  if(!hasSpecial && board[a.y][a.x] && typeof board[a.y][a.x] === "object" && board[a.y][a.x] !== null){
+  if(!hasSpecialActivated && board[a.y][a.x] && typeof board[a.y][a.x] === "object" && board[a.y][a.x] !== null && board[a.y][a.x].special){
     await Specials.activateWithDelay(a.x, a.y)
     board[a.y][a.x] = null
-    hasSpecial = true
+    hasSpecialActivated = true
   }
   
-  if(hasSpecial){
-    // Если были special - делаем gravity и проверяем матчи
+  if(hasSpecialActivated){
     await dropWithDelay(150)
     await spawnNewWithDelay(150)
     renderBoard()
     
-    // Проверяем новые матчи после gravity
     await processMatchesAsync()
     
     updateHUD()
@@ -287,7 +281,6 @@ async function onCellClick(x, y){
   let matches = MatchDetection.getMatches(board)
   
   if(matches.length === 0){
-    // НЕТ МАТЧЕЙ - ОТКАТ
     board[a.y][a.x] = A
     board[b.y][b.x] = B
     renderBoard()
@@ -298,7 +291,6 @@ async function onCellClick(x, y){
     return
   }
   
-  // ЕСТЬ МАТЧИ - ОБРАБАТЫВАЕМ
   movesLeft--
   updateHUD()
   
@@ -386,7 +378,6 @@ async function processMatchesAsync(){
     return
   }
   
-  // Обрабатываем все матчи
   for(const match of matches){
     
     // Подсвечиваем ячейки матча
@@ -412,24 +403,22 @@ async function processMatchesAsync(){
       specialCell = match.cells[2]
     }
     
-    // Удаляем ячейки матча
+    // Удаляем ВСЕ ячейки матча
     for(const cellPos of match.cells){
-      // Пропускаем ячейку для special
-      if(specialCell && cellPos.x === specialCell.x && cellPos.y === specialCell.y) continue
-      
       const cell = board[cellPos.y][cellPos.x]
       
-      // Если в матче была special плитка - активируем её
+      // Если это существующая special плитка - просто удаляем, НЕ активируем
       if(typeof cell === "object" && cell !== null && cell.special){
-        await Specials.activate(cellPos.x, cellPos.y)
+        board[cellPos.y][cellPos.x] = null
+        continue
       }
       
       score += 50
       board[cellPos.y][cellPos.x] = null
     }
     
-    // Создаём новую special плитку
-    if(specialCell && specialType){
+    // Создаём НОВУЮ special плитку
+    if(specialCell && specialType && board[specialCell.y][specialCell.x] === null){
       board[specialCell.y][specialCell.x] = {
         color: randomColor(),
         special: specialType,
@@ -478,7 +467,6 @@ async function dropWithDelay(baseDelay = 150){
       }
     }
     
-    // Заполняем пустоты сверху новыми плитками
     for(let y=0; y<emptySpaces; y++){
       board[y][x] = randomColor()
       changed = true
@@ -827,4 +815,4 @@ function animateCoins(){
     
     setTimeout(() => coin.remove(), 900)
   }
-    }
+  }
