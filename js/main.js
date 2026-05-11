@@ -253,48 +253,44 @@ async function onCellClick(x, y){
   renderBoard()
   await delay(200)
   
-  // ПРОВЕРЯЕМ SPECIAL TILES
+  // ПРОВЕРЯЕМ SPECIAL TILES ПОСЛЕ SWAP
+  let hasSpecial = false
+  
   if(typeof A === "object" && A !== null && A.special){
-    isProcessingSpecial = true
-    
-    await Specials.activateWithDelay(b.x, b.y)
-    
+    // Special A переместился в позицию B
+    if(board[b.y] && board[b.y][b.x]){
+      await Specials.activateWithDelay(b.x, b.y)
+    }
     board[b.y][b.x] = null
-    await dropWithDelay(150)
-    await spawnNewWithDelay(150)
-    renderBoard()
-    
-    await processMatchesWithDelay()
-    
-    updateHUD()
-    checkWin()
-    
-    isProcessingSpecial = false
-    isAnimating = false
-    return
+    hasSpecial = true
   }
   
   if(typeof B === "object" && B !== null && B.special){
-    isProcessingSpecial = true
-    
-    await Specials.activateWithDelay(a.x, a.y)
-    
+    // Special B переместился в позицию A
+    if(board[a.y] && board[a.y][a.x]){
+      await Specials.activateWithDelay(a.x, a.y)
+    }
     board[a.y][a.x] = null
+    hasSpecial = true
+  }
+  
+  if(hasSpecial){
+    // Если были special - делаем gravity и проверяем матчи
     await dropWithDelay(150)
     await spawnNewWithDelay(150)
     renderBoard()
     
-    await processMatchesWithDelay()
+    // Проверяем новые матчи после gravity
+    await processMatchesAsync()
     
     updateHUD()
     checkWin()
-    
-    isProcessingSpecial = false
+    startHintTimer()
     isAnimating = false
     return
   }
   
-  // ПРОВЕРЯЕМ МАТЧИ
+  // ПРОВЕРЯЕМ ОБЫЧНЫЕ МАТЧИ
   let matches = MatchDetection.getMatches(board)
   
   if(matches.length === 0){
@@ -302,15 +298,19 @@ async function onCellClick(x, y){
     board[a.y][a.x] = A
     board[b.y][b.x] = B
     renderBoard()
+    
+    // Небольшая анимация отката
+    await delay(150)
+    
     isAnimating = false
     return
   }
   
-  // ЕСТЬ МАТЧИ - ПРОДОЛЖАЕМ
+  // ЕСТЬ МАТЧИ - ОБРАБАТЫВАЕМ
   movesLeft--
   updateHUD()
   
-  await processMatchesWithDelay()
+  await processMatchesAsync()
   
   updateHUD()
   checkWin()
@@ -382,22 +382,23 @@ function checkMatches(){
 }
 
 
-// ================= ПРОЦЕСС МАТЧЕЙ С ЗАДЕРЖКОЙ =================
+// ================= ЕДИНАЯ АСИНХРОННАЯ ОБРАБОТКА МАТЧЕЙ =================
 
-async function processMatchesWithDelay(){
+async function processMatchesAsync(){
   const matches = MatchDetection.getMatches(board)
   
   if(matches.length === 0){
-    checkWin()
+    // Нет матчей - проверяем возможность хода
     if(!hasPossibleMoves()){
-      shuffleBoard()
+      await shuffleBoardAsync()
     }
     return
   }
   
+  // Обрабатываем все матчи
   for(const match of matches){
+    // Показываем эффект
     await showMatchEffect(match)
-    await delay(350)
     
     let specialCell = null
     
@@ -405,19 +406,23 @@ async function processMatchesWithDelay(){
     if(match.type === "color") specialCell = match.cells[2]
     if(match.type === "bomb") specialCell = match.cells[0]
     
-    match.cells.forEach(cellPos => {
-      if(specialCell && cellPos.x === specialCell.x && cellPos.y === specialCell.y) return
+    // Удаляем обычные ячейки и активируем special
+    for(const cellPos of match.cells){
+      // Пропускаем ячейку для создания special
+      if(specialCell && cellPos.x === specialCell.x && cellPos.y === specialCell.y) continue
       
-      let cell = board[cellPos.y][cellPos.x]
+      const cell = board[cellPos.y][cellPos.x]
       
-      if(typeof cell === "object" && cell !== null){
-        Specials.activate(cellPos.x, cellPos.y)
+      // Если это special tile - активируем его
+      if(typeof cell === "object" && cell !== null && cell.special){
+        await Specials.activate(cellPos.x, cellPos.y)
       }
       
       score += 50
       board[cellPos.y][cellPos.x] = null
-    })
+    }
     
+    // Создаём special tile если нужно
     if(specialCell){
       board[specialCell.y][specialCell.x] = {
         color: randomColor(),
@@ -425,43 +430,47 @@ async function processMatchesWithDelay(){
         type: "special"
       }
     }
+    
+    renderBoard()
+    await delay(300)
   }
   
-  renderBoard()
-  
+  // Gravity и spawn новых плиток
   await dropWithDelay(120)
-  renderBoard()
-  
   await spawnNewWithDelay(120)
   renderBoard()
+  await delay(200)
   
   updateHUD()
-  await processMatchesWithDelay()
+  
+  // Рекурсивно проверяем новые матчи (каскады)
+  await processMatchesAsync()
 }
 
 
-// ================= ФУНКЦИИ ЗАДЕРЖЕК =================
-
-function delay(ms){
-  return new Promise(resolve => setTimeout(resolve, ms))
-}
+// ================= УЛУЧШЕННЫЙ DROP =================
 
 async function dropWithDelay(baseDelay = 120){
   let changed = false
   
+  // Гравитация - падение вниз
   for(let x=0; x<SIZE; x++){
+    let writePos = SIZE - 1
+    
+    // Сдвигаем существующие плитки вниз
     for(let y=SIZE-1; y>=0; y--){
-      if(board[y][x] === null){
-        for(let k=y-1; k>=0; k--){
-          if(board[k][x] !== null){
-            board[y][x] = board[k][x]
-            board[k][x] = null
-            changed = true
-            break
-          }
+      if(board[y][x] !== null){
+        if(writePos !== y){
+          board[writePos][x] = board[y][x]
+          board[y][x] = null
+          changed = true
         }
+        writePos--
       }
-      
+    }
+    
+    // Заполняем пустоты сверху новыми плитками
+    for(let y=writePos; y>=0; y--){
       if(board[y][x] === null){
         board[y][x] = randomColor()
         changed = true
@@ -494,14 +503,16 @@ async function spawnNewWithDelay(baseDelay = 120){
 }
 
 
-// ================= ВИЗУАЛЬНЫЙ ЭФФЕКТ ДЛЯ МАТЧА =================
+// ================= ВИЗУАЛЬНЫЕ ЭФФЕКТЫ =================
 
 async function showMatchEffect(match){
+  // Подсветка ячеек матча
   match.cells.forEach(cellPos => {
     const el = cells[cellPos.y]?.[cellPos.x]
     if(el) el.classList.add("matchFlash")
   })
   
+  // Спец-эффект в зависимости от типа
   if(match.type === "rocket"){
     await showRocketEffect(match.cells)
   } else if(match.type === "bomb"){
@@ -512,6 +523,7 @@ async function showMatchEffect(match){
   
   await delay(200)
   
+  // Убираем подсветку
   match.cells.forEach(cellPos => {
     const el = cells[cellPos.y]?.[cellPos.x]
     if(el) el.classList.remove("matchFlash")
@@ -523,6 +535,7 @@ async function showRocketEffect(matchCells){
   
   const center = matchCells[Math.floor(matchCells.length / 2)]
   
+  // Показываем линии rockets
   for(let i=0; i<SIZE; i++){
     if(cells[center.y] && cells[center.y][i]){
       cells[center.y][i].classList.add("rocketLine")
@@ -548,6 +561,7 @@ async function showBombEffect(matchCells){
   
   const center = matchCells[0]
   
+  // Показываем взрыв в области 3x3
   for(let dy=-1; dy<=1; dy++){
     for(let dx=-1; dx<=1; dx++){
       const x = center.x + dx
@@ -566,6 +580,7 @@ async function showBombEffect(matchCells){
 }
 
 async function showRainbowEffect(){
+  // Подсвечиваем все плитки одного цвета
   for(let y=0; y<SIZE; y++){
     for(let x=0; x<SIZE; x++){
       const cell = board[y][x]
@@ -580,91 +595,6 @@ async function showRainbowEffect(){
     }
   }
   await delay(300)
-}
-
-
-// ================= DROP (ОБЫЧНЫЙ - ДЛЯ СОВМЕСТИМОСТИ) =================
-
-function drop(){
-  for(let x=0; x<SIZE; x++){
-    for(let y=SIZE-1; y>=0; y--){
-      if(board[y][x] === null){
-        for(let k=y-1; k>=0; k--){
-          if(board[k][x] !== null){
-            board[y][x] = board[k][x]
-            board[k][x] = null
-            break
-          }
-        }
-      }
-      
-      if(board[y][x] === null){
-        board[y][x] = randomColor()
-      }
-    }
-  }
-}
-
-
-// ================= SPAWN (ОБЫЧНЫЙ - ДЛЯ СОВМЕСТИМОСТИ) =================
-
-function spawnNew(){
-  for(let y=0; y<SIZE; y++){
-    for(let x=0; x<SIZE; x++){
-      if(board[y][x] === null){
-        board[y][x] = randomColor()
-      }
-    }
-  }
-}
-
-// ================= PROCESS MATCH (ОБЫЧНЫЙ - ДЛЯ СОВМЕСТИМОСТИ) =================
-
-function processMatches(){
-  const matches = MatchDetection.getMatches(board)
-  
-  if(matches.length === 0){
-    checkWin()
-    if(!hasPossibleMoves()){
-      shuffleBoard()
-    }
-    return
-  }
-  
-  matches.forEach(match => {
-    let specialCell = null
-    
-    if(match.type === "rocket") specialCell = match.cells[1]
-    if(match.type === "color") specialCell = match.cells[2]
-    if(match.type === "bomb") specialCell = match.cells[0]
-    
-    match.cells.forEach(cellPos => {
-      if(specialCell && cellPos.x === specialCell.x && cellPos.y === specialCell.y) return
-      
-      let cell = board[cellPos.y][cellPos.x]
-      
-      if(typeof cell === "object" && cell !== null){
-        Specials.activate(cellPos.x, cellPos.y)
-      }
-      
-      score += 50
-      board[cellPos.y][cellPos.x] = null
-    })
-    
-    if(specialCell){
-      board[specialCell.y][specialCell.x] = {
-        color: randomColor(),
-        special: match.type,
-        type: "special"
-      }
-    }
-  })
-  
-  drop()
-  spawnNew()
-  renderBoard()
-  
-  setTimeout(processMatches, 100)
 }
 
 
@@ -704,7 +634,22 @@ function swapTest(x1, y1, x2, y2){
 
 // ================= SHUFFLE =================
 
+async function shuffleBoardAsync(){
+  // Перемешиваем доску пока нет возможных ходов
+  do {
+    for(let y=0; y<SIZE; y++){
+      for(let x=0; x<SIZE; x++){
+        board[y][x] = randomColor()
+      }
+    }
+  } while(hasPossibleMoves() || checkMatches().length > 0)
+  
+  renderBoard()
+  await delay(500)
+}
+
 function shuffleBoard(){
+  // Синхронная версия для обратной совместимости
   for(let y=0; y<SIZE; y++){
     for(let x=0; x<SIZE; x++){
       board[y][x] = randomColor()
@@ -764,6 +709,13 @@ function clearHints(){
 }
 
 
+// ================= UTILITY =================
+
+function delay(ms){
+  return new Promise(resolve => setTimeout(resolve, ms))
+}
+
+
 // ================= HUD =================
 
 function updateHUD(){
@@ -798,6 +750,7 @@ function winLevel(){
   
   levelFinished = true
   gameLocked = true
+  isAnimating = false
   
   animateCoins()
   
@@ -821,6 +774,7 @@ function loseLevel(){
   
   levelFinished = true
   gameLocked = true
+  isAnimating = false
   
   LivesSystem.useLife()
   
@@ -831,7 +785,7 @@ function loseLevel(){
 }
 
 
-// ================= LEVEL =================
+// ================= LEVEL NAVIGATION =================
 
 function nextLevel(){
   currentLevel++
@@ -874,4 +828,4 @@ function animateCoins(){
     
     setTimeout(() => coin.remove(), 900)
   }
-  }
+}
