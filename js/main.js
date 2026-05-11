@@ -1,840 +1,877 @@
-// ================= ACTION LOCK MANAGER =================
-
-class ActionLockManager {
-  constructor() {
-    this.locks = new Map();
-    this.queue = [];
-    this.isProcessing = false;
-    this.currentAction = null;
-  }
-
-  async acquireLock(lockType, priority = 0) {
-    return new Promise((resolve) => {
-      if (!this.isProcessing || priority > 10) {
-        this.isProcessing = true;
-        this.currentAction = lockType;
-        this.locks.set(lockType, true);
-        resolve();
-      } else {
-        this.queue.push({ lockType, priority, resolve });
-      }
-    });
-  }
-
-  releaseLock(lockType) {
-    this.locks.delete(lockType);
-    this.currentAction = null;
-    
-    if (this.queue.length > 0) {
-      // Сортируем по приоритету (высший первый)
-      this.queue.sort((a, b) => b.priority - a.priority);
-      const next = this.queue.shift();
-      this.currentAction = next.lockType;
-      this.locks.set(next.lockType, true);
-      next.resolve();
-    } else {
-      this.isProcessing = false;
-    }
-  }
-
-  isLocked() {
-    return this.isProcessing || this.locks.size > 0;
-  }
-
-  clearAll() {
-    this.queue = [];
-    this.locks.clear();
-    this.isProcessing = false;
-    this.currentAction = null;
-  }
-}
-
-// ================= GLOBAL STATE MANAGER =================
-
-class GameStateManager {
-  constructor() {
-    this.state = 'idle'; // idle, animating, processing, locked
-    this.allowedInputs = {
-      'idle': ['tap', 'swipe'],
-      'animating': [],
-      'processing': [],
-      'locked': []
-    };
-  }
-
-  setState(newState) {
-    console.log(`GameState: ${this.state} -> ${newState}`);
-    this.state = newState;
-  }
-
-  canAcceptInput(inputType) {
-    return this.allowedInputs[this.state]?.includes(inputType);
-  }
-
-  isAnimating() {
-    return this.state === 'animating' || this.state === 'processing';
-  }
-}
-
 // ================= GLOBAL =================
 
-let currentLevel = 1;
-let levelData = null;
-let movesLeft = 0;
-let score = 0;
-let collected = 0;
-let levelFinished = false;
-let gameLocked = false;
-let hintTimer = null;
+let currentLevel = 1
+let levelData = null
 
-const actionLock = new ActionLockManager();
-const gameState = new GameStateManager();
+let movesLeft = 0
+let score = 0
+let collected = 0
 
-const SIZE = 8;
-const COLORS = ["red", "blue", "green", "yellow", "purple"];
-let board = [];
-let cells = [];
-let selected = null;
+let levelFinished = false
+let gameLocked = false
+
+let hintTimer = null
+let isProcessingSpecial = false
+
+// ЕДИНАЯ БЛОКИРОВКА ДЛЯ АНИМАЦИЙ
+let isAnimating = false
+
+const SIZE = 8
+const COLORS = ["red","blue","green","yellow","purple"]
+
+let board = []
+let cells = []
+
+let selected = null
+
 
 // ================= INIT =================
 
-async function init() {
-  LivesSystem.init();
-  await Levels.load();
-  updateScreens();
-  updateCoinsUI();
+async function init(){
+  LivesSystem.init()
+  await Levels.load()
+  updateScreens()
+  updateCoinsUI()
 }
 
-window.onload = init;
+window.onload = init
+
 
 // ================= START LEVEL =================
 
-function startLevel() {
-  if (actionLock.isLocked()) return;
-  
-  if (!LivesSystem.hasLives()) {
-    LivesSystem.showNoLivesPopup();
-    return;
+function startLevel(){
+  if(!LivesSystem.hasLives()){
+    LivesSystem.showNoLivesPopup()
+    return
   }
-  
-  goTo("game");
-  initLevel();
+  goTo("game")
+  initLevel()
 }
+
 
 // ================= INIT LEVEL =================
 
-async function initLevel() {
-  actionLock.clearAll();
-  gameState.setState('idle');
+function initLevel(){
+  levelFinished = false
+  gameLocked = false
+  isAnimating = false
+  isProcessingSpecial = false
   
-  levelFinished = false;
-  gameLocked = false;
+  levelData = Levels.get(currentLevel)
   
-  levelData = Levels.get(currentLevel);
-  
-  createBoard();
-  startGameplay();
-  startHintTimer();
+  createBoard()
+  startGameplay()
+  startHintTimer()
 }
+
 
 // ================= GAMEPLAY =================
 
-function startGameplay() {
-  movesLeft = levelData.moves;
-  score = 0;
-  collected = 0;
-  updateHUD();
+function startGameplay(){
+  movesLeft = levelData.moves
+  score = 0
+  collected = 0
+  updateHUD()
 }
+
 
 // ================= CREATE BOARD =================
 
-function createBoard() {
-  const boardEl = document.getElementById("board");
-  boardEl.innerHTML = "";
+function createBoard(){
+  const boardEl = document.getElementById("board")
+  boardEl.innerHTML = ""
   
-  board = [];
-  cells = [];
+  board = []
+  cells = []
   
-  for (let y = 0; y < SIZE; y++) {
-    board[y] = [];
-    cells[y] = [];
+  for(let y=0; y<SIZE; y++){
+    board[y] = []
+    cells[y] = []
     
-    for (let x = 0; x < SIZE; x++) {
-      let color;
+    for(let x=0; x<SIZE; x++){
+      let color
       
-      do {
-        color = randomColor();
-        board[y][x] = color;
-      } while (hasMatchAt(x, y));
+      do{
+        color = randomColor()
+        board[y][x] = color
+      }
+      while(hasMatchAt(x,y))
       
-      const cell = document.createElement("div");
-      cell.className = "cell";
-      cell.dataset.x = x;
-      cell.dataset.y = y;
+      const cell = document.createElement("div")
+      cell.className = "cell"
+      cell.dataset.x = x
+      cell.dataset.y = y
       
-      setColor(cell, color);
-      addInputHandlers(cell, x, y);
+      setColor(cell, color)
+      addSwipe(cell, x, y)
       
-      boardEl.appendChild(cell);
-      cells[y][x] = cell;
+      boardEl.appendChild(cell)
+      cells[y][x] = cell
     }
   }
 }
+
 
 // ================= RANDOM =================
 
-function randomColor() {
-  return COLORS[Math.floor(Math.random() * COLORS.length)];
+function randomColor(){
+  return COLORS[Math.floor(Math.random() * COLORS.length)]
 }
+
 
 // ================= START MATCH CHECK =================
 
-function hasMatchAt(x, y) {
-  const color = board[y][x];
+function hasMatchAt(x,y){
+  const color = board[y][x]
   
-  if (x >= 2 && board[y][x-1] === color && board[y][x-2] === color) return true;
-  if (y >= 2 && board[y-1][x] === color && board[y-2][x] === color) return true;
+  if(x>=2 && board[y][x-1]===color && board[y][x-2]===color) return true
+  if(y>=2 && board[y-1][x]===color && board[y-2][x]===color) return true
   
-  return false;
+  return false
 }
+
 
 // ================= COLOR =================
 
-function setColor(cell, data) {
-  if (typeof data === "object" && data !== null) {
-    if (data.special === "rocket") cell.innerHTML = "🚀";
-    if (data.special === "bomb") cell.innerHTML = "💣";
-    if (data.special === "color") cell.innerHTML = "🌈";
-    cell.style.background = "#444";
-  } else if (typeof data === "string") {
-    cell.innerHTML = "";
-    cell.style.background = data;
+function setColor(cell, data){
+  if(typeof data === "object" && data !== null){
+    if(data.special === "rocket") cell.innerHTML = "🚀"
+    if(data.special === "bomb") cell.innerHTML = "💣"
+    if(data.special === "color") cell.innerHTML = "🌈"
+    cell.style.background = "#444"
+  }
+  else if(typeof data === "string"){
+    cell.innerHTML = ""
+    cell.style.background = data
   }
 }
 
-// ================= INPUT HANDLERS (УЛУЧШЕННЫЕ) =================
 
-function addInputHandlers(cell, x, y) {
-  let startX = 0;
-  let startY = 0;
+// ================= SWIPE =================
+
+function addSwipe(cell, x, y){
+  let startX = 0
+  let startY = 0
   
-  // Единый обработчик для всех типов взаимодействия
-  cell.addEventListener("pointerdown", (e) => {
-    if (!gameState.canAcceptInput('tap') || actionLock.isLocked()) return;
+  cell.addEventListener("touchstart", e => {
+    // БЛОКИРУЕМ ВВОД ЕСЛИ ИДЁТ АНИМАЦИЯ
+    if(gameLocked || isAnimating || isProcessingSpecial) return
     
-    startX = e.clientX;
-    startY = e.clientY;
-    selected = { x, y };
-    highlightCell(x, y);
-  });
+    startX = e.touches[0].clientX
+    startY = e.touches[0].clientY
+    selected = {x, y}
+    highlightCell(x, y)
+  })
   
-  cell.addEventListener("pointerup", (e) => {
-    if (!gameState.canAcceptInput('tap') || actionLock.isLocked()) {
-      clearHighlight();
-      selected = null;
-      return;
+  cell.addEventListener("touchend", e => {
+    // БЛОКИРУЕМ ВВОД ЕСЛИ ИДЁТ АНИМАЦИЯ
+    if(gameLocked || isAnimating || isProcessingSpecial) return
+    
+    const endX = e.changedTouches[0].clientX
+    const endY = e.changedTouches[0].clientY
+    
+    const dx = endX - startX
+    const dy = endY - startY
+    
+    let targetX = x
+    let targetY = y
+    
+    if(Math.abs(dx) > Math.abs(dy)){
+      if(dx > 30) targetX = x + 1
+      if(dx < -30) targetX = x - 1
+    }else{
+      if(dy > 30) targetY = y + 1
+      if(dy < -30) targetY = y - 1
     }
     
-    const endX = e.clientX;
-    const endY = e.clientY;
-    
-    const dx = endX - startX;
-    const dy = endY - startY;
-    
-    let targetX = x;
-    let targetY = y;
-    
-    if (Math.abs(dx) > Math.abs(dy)) {
-      if (dx > 30) targetX = x + 1;
-      if (dx < -30) targetX = x - 1;
-    } else {
-      if (dy > 30) targetY = y + 1;
-      if (dy < -30) targetY = y - 1;
-    }
-    
-    onCellClick(targetX, targetY);
-  });
-  
-  // Предотвращаем множественные касания
-  cell.addEventListener("touchstart", (e) => {
-    if (!gameState.canAcceptInput('tap') || actionLock.isLocked()) {
-      e.preventDefault();
-      return;
-    }
-  }, { passive: false });
+    onCellClick(targetX, targetY)
+  })
 }
+
 
 // ================= HIGHLIGHT =================
 
-function highlightCell(x, y) {
-  clearHints();
+function highlightCell(x, y){
+  clearHints()
   
-  for (let yy = 0; yy < SIZE; yy++) {
-    for (let xx = 0; xx < SIZE; xx++) {
-      cells[yy][xx].classList.remove("selected");
+  for(let yy=0; yy<SIZE; yy++){
+    for(let xx=0; xx<SIZE; xx++){
+      cells[yy][xx].classList.remove("selected")
     }
   }
   
-  cells[y][x].classList.add("selected");
+  cells[y][x].classList.add("selected")
 }
 
-function clearHighlight() {
-  for (let yy = 0; yy < SIZE; yy++) {
-    for (let xx = 0; xx < SIZE; xx++) {
-      cells[yy][xx].classList.remove("selected");
+function clearHighlight(){
+  for(let yy=0; yy<SIZE; yy++){
+    for(let xx=0; xx<SIZE; xx++){
+      cells[yy][xx].classList.remove("selected")
     }
   }
 }
 
-// ================= CLICK (ЗАЩИЩЕННЫЙ) =================
 
-async function onCellClick(x, y) {
-  // МНОЖЕСТВЕННЫЕ ПРОВЕРКИ ЗАЩИТЫ
-  if (gameLocked || levelFinished) return;
-  if (actionLock.isLocked()) return;
-  if (gameState.isAnimating()) return;
-  if (x < 0 || x >= SIZE || y < 0 || y >= SIZE) return;
+// ================= CLICK (ГЛАВНЫЙ ОБРАБОТЧИК) =================
+
+async function onCellClick(x, y){
+  // ВСЕ ПРОВЕРКИ В ОДНОМ МЕСТЕ
+  if(gameLocked || isAnimating || isProcessingSpecial) return
+  if(x<0 || x>=SIZE || y<0 || y>=SIZE) return
   
-  if (!selected) {
-    selected = { x, y };
-    highlightCell(x, y);
-    return;
+  if(!selected){
+    selected = {x, y}
+    highlightCell(x, y)
+    return
   }
   
-  const dx = Math.abs(selected.x - x);
-  const dy = Math.abs(selected.y - y);
+  const dx = Math.abs(selected.x - x)
+  const dy = Math.abs(selected.y - y)
   
-  if (dx + dy !== 1) {
-    clearHighlight();
-    selected = null;
-    return;
+  if(dx + dy !== 1){
+    clearHighlight()
+    selected = null
+    return
   }
   
-  // БЛОКИРУЕМ ВВОД НА ВРЕМЯ ВСЕЙ ОПЕРАЦИИ
-  await actionLock.acquireLock('swap', 1);
-  gameState.setState('animating');
+  // БЛОКИРУЕМ ВВОД
+  isAnimating = true
   
-  try {
-    const result = await performSwap(selected, { x, y });
+  const a = {x: selected.x, y: selected.y}
+  const b = {x, y}
+  
+  clearHighlight()
+  selected = null
+  
+  // ВЫПОЛНЯЕМ SWAP
+  const A = board[a.y][a.x]
+  const B = board[b.y][b.x]
+  
+  board[a.y][a.x] = B
+  board[b.y][b.x] = A
+  
+  renderBoard()
+  await delay(200)
+  
+  // ПРОВЕРЯЕМ SPECIAL TILES
+  if(typeof A === "object" && A !== null && A.special){
+    isProcessingSpecial = true
     
-    if (!result) {
-      // Неудачный swap - откатываем
-      await performSwap(selected, { x, y });
-    } else {
-      movesLeft--;
-      await processBoardState();
+    await Specials.activateWithDelay(b.x, b.y)
+    
+    board[b.y][b.x] = null
+    await dropWithDelay(150)
+    await spawnNewWithDelay(150)
+    renderBoard()
+    
+    await processMatchesWithDelay()
+    
+    updateHUD()
+    checkWin()
+    
+    isProcessingSpecial = false
+    isAnimating = false
+    return
+  }
+  
+  if(typeof B === "object" && B !== null && B.special){
+    isProcessingSpecial = true
+    
+    await Specials.activateWithDelay(a.x, a.y)
+    
+    board[a.y][a.x] = null
+    await dropWithDelay(150)
+    await spawnNewWithDelay(150)
+    renderBoard()
+    
+    await processMatchesWithDelay()
+    
+    updateHUD()
+    checkWin()
+    
+    isProcessingSpecial = false
+    isAnimating = false
+    return
+  }
+  
+  // ПРОВЕРЯЕМ МАТЧИ
+  let matches = MatchDetection.getMatches(board)
+  
+  if(matches.length === 0){
+    // НЕТ МАТЧЕЙ - ОТКАТ
+    board[a.y][a.x] = A
+    board[b.y][b.x] = B
+    renderBoard()
+    isAnimating = false
+    return
+  }
+  
+  // ЕСТЬ МАТЧИ - ПРОДОЛЖАЕМ
+  movesLeft--
+  updateHUD()
+  
+  await processMatchesWithDelay()
+  
+  updateHUD()
+  checkWin()
+  startHintTimer()
+  
+  isAnimating = false
+}
+
+
+// ================= RENDER =================
+
+function renderBoard(){
+  for(let y=0; y<SIZE; y++){
+    for(let x=0; x<SIZE; x++){
+      setColor(cells[y][x], board[y][x])
     }
-  } finally {
-    // ГАРАНТИРОВАННО РАЗБЛОКИРУЕМ
-    clearHighlight();
-    selected = null;
-    updateHUD();
-    startHintTimer();
-    
-    gameState.setState('idle');
-    actionLock.releaseLock('swap');
   }
 }
 
-// ================= УЛУЧШЕННЫЙ SWAP =================
 
-async function performSwap(a, b) {
-  const A = board[a.y][a.x];
-  const B = board[b.y][b.x];
+// ================= MATCH CHECK =================
+
+function checkMatches(){
+  let matches = []
   
-  // Выполняем swap асинхронно с анимацией
-  board[a.y][a.x] = B;
-  board[b.y][b.x] = A;
-  
-  renderBoard();
-  await delay(200); // Визуальная задержка для анимации
-  
-  // Проверяем special tiles
-  if (typeof A === "object" && A?.special) {
-    await handleSpecialTile(b.x, b.y);
-    return true;
+  for(let y=0; y<SIZE; y++){
+    let count = 1
+    for(let x=1; x<SIZE; x++){
+      if(board[y][x] === board[y][x-1]){
+        count++
+      }else{
+        if(count >= 3){
+          for(let i=0; i<count; i++){
+            matches.push({x: x-1-i, y})
+          }
+        }
+        count = 1
+      }
+    }
+    if(count >= 3){
+      for(let i=0; i<count; i++){
+        matches.push({x: SIZE-1-i, y})
+      }
+    }
   }
   
-  if (typeof B === "object" && B?.special) {
-    await handleSpecialTile(a.x, a.y);
-    return true;
+  for(let x=0; x<SIZE; x++){
+    let count = 1
+    for(let y=1; y<SIZE; y++){
+      if(board[y][x] === board[y-1][x]){
+        count++
+      }else{
+        if(count >= 3){
+          for(let i=0; i<count; i++){
+            matches.push({x, y: y-1-i})
+          }
+        }
+        count = 1
+      }
+    }
+    if(count >= 3){
+      for(let i=0; i<count; i++){
+        matches.push({x, y: SIZE-1-i})
+      }
+    }
   }
   
-  // Проверяем обычные matches
-  const matches = MatchDetection.getMatches(board);
-  return matches.length > 0;
+  return matches
 }
 
-// ================= ОБРАБОТКА SPECIAL =================
 
-async function handleSpecialTile(x, y) {
-  gameState.setState('processing');
-  
-  await Specials.activateWithDelay(x, y);
-  
-  board[y][x] = null;
-  await processGravityAndSpawn();
-  renderBoard();
-  
-  await processMatchesWithDelay();
-  
-  gameState.setState('animating');
-}
+// ================= ПРОЦЕСС МАТЧЕЙ С ЗАДЕРЖКОЙ =================
 
-// ================= ОБРАБОТКА СОСТОЯНИЯ ДОСКИ =================
-
-async function processBoardState() {
-  await processMatchesWithDelay();
+async function processMatchesWithDelay(){
+  const matches = MatchDetection.getMatches(board)
   
-  updateHUD();
-  checkWin();
-  
-  if (!hasPossibleMoves()) {
-    await shuffleBoard();
+  if(matches.length === 0){
+    checkWin()
+    if(!hasPossibleMoves()){
+      shuffleBoard()
+    }
+    return
   }
-}
-
-// ================= УЛУЧШЕННАЯ ОБРАБОТКА МАТЧЕЙ =================
-
-async function processMatchesWithDelay() {
-  const matches = MatchDetection.getMatches(board);
   
-  if (matches.length === 0) return;
-  
-  for (const match of matches) {
-    await showMatchEffect(match);
-    await delay(350);
+  for(const match of matches){
+    await showMatchEffect(match)
+    await delay(350)
     
-    let specialCell = null;
+    let specialCell = null
     
-    if (match.type === "rocket") specialCell = match.cells[1];
-    if (match.type === "color") specialCell = match.cells[2];
-    if (match.type === "bomb") specialCell = match.cells[0];
+    if(match.type === "rocket") specialCell = match.cells[1]
+    if(match.type === "color") specialCell = match.cells[2]
+    if(match.type === "bomb") specialCell = match.cells[0]
     
-    for (const cellPos of match.cells) {
-      if (specialCell && cellPos.x === specialCell.x && cellPos.y === specialCell.y) continue;
+    match.cells.forEach(cellPos => {
+      if(specialCell && cellPos.x === specialCell.x && cellPos.y === specialCell.y) return
       
-      const cell = board[cellPos.y][cellPos.x];
+      let cell = board[cellPos.y][cellPos.x]
       
-      if (typeof cell === "object" && cell !== null) {
-        await Specials.activate(cellPos.x, cellPos.y);
+      if(typeof cell === "object" && cell !== null){
+        Specials.activate(cellPos.x, cellPos.y)
       }
       
-      score += 50;
-      board[cellPos.y][cellPos.x] = null;
-    }
+      score += 50
+      board[cellPos.y][cellPos.x] = null
+    })
     
-    if (specialCell) {
+    if(specialCell){
       board[specialCell.y][specialCell.x] = {
         color: randomColor(),
         special: match.type,
         type: "special"
-      };
-    }
-  }
-  
-  renderBoard();
-  
-  await processGravityAndSpawn();
-  renderBoard();
-  
-  updateHUD();
-  
-  // Рекурсивно обрабатываем каскады
-  await processMatchesWithDelay();
-}
-
-// ================= УЛУЧШЕННАЯ ГРАВИТАЦИЯ =================
-
-async function processGravityAndSpawn() {
-  let changed = false;
-  
-  // Гравитация
-  for (let x = 0; x < SIZE; x++) {
-    let writePos = SIZE - 1;
-    
-    for (let y = SIZE - 1; y >= 0; y--) {
-      if (board[y][x] !== null) {
-        if (writePos !== y) {
-          board[writePos][x] = board[y][x];
-          board[y][x] = null;
-          changed = true;
-        }
-        writePos--;
-      }
-    }
-    
-    // Заполняем пустоты
-    for (let y = writePos; y >= 0; y--) {
-      if (board[y][x] === null) {
-        board[y][x] = randomColor();
-        changed = true;
       }
     }
   }
   
-  if (changed) {
-    renderBoard();
-    await delay(300);
-  }
-}
-
-// ================= RENDER =================
-
-function renderBoard() {
-  for (let y = 0; y < SIZE; y++) {
-    for (let x = 0; x < SIZE; x++) {
-      setColor(cells[y][x], board[y][x]);
-    }
-  }
-}
-
-// ================= MATCH CHECK =================
-
-function checkMatches() {
-  let matches = [];
+  renderBoard()
   
-  // Горизонтальные
-  for (let y = 0; y < SIZE; y++) {
-    let count = 1;
-    for (let x = 1; x < SIZE; x++) {
-      if (board[y][x] === board[y][x-1]) {
-        count++;
-      } else {
-        if (count >= 3) {
-          for (let i = 0; i < count; i++) {
-            matches.push({ x: x-1-i, y });
+  await dropWithDelay(120)
+  renderBoard()
+  
+  await spawnNewWithDelay(120)
+  renderBoard()
+  
+  updateHUD()
+  await processMatchesWithDelay()
+}
+
+
+// ================= ФУНКЦИИ ЗАДЕРЖЕК =================
+
+function delay(ms){
+  return new Promise(resolve => setTimeout(resolve, ms))
+}
+
+async function dropWithDelay(baseDelay = 120){
+  let changed = false
+  
+  for(let x=0; x<SIZE; x++){
+    for(let y=SIZE-1; y>=0; y--){
+      if(board[y][x] === null){
+        for(let k=y-1; k>=0; k--){
+          if(board[k][x] !== null){
+            board[y][x] = board[k][x]
+            board[k][x] = null
+            changed = true
+            break
           }
         }
-        count = 1;
       }
-    }
-    if (count >= 3) {
-      for (let i = 0; i < count; i++) {
-        matches.push({ x: SIZE-1-i, y });
+      
+      if(board[y][x] === null){
+        board[y][x] = randomColor()
+        changed = true
       }
     }
   }
   
-  // Вертикальные
-  for (let x = 0; x < SIZE; x++) {
-    let count = 1;
-    for (let y = 1; y < SIZE; y++) {
-      if (board[y][x] === board[y-1][x]) {
-        count++;
-      } else {
-        if (count >= 3) {
-          for (let i = 0; i < count; i++) {
-            matches.push({ x, y: y-1-i });
+  if(changed){
+    renderBoard()
+    await delay(baseDelay)
+  }
+}
+
+async function spawnNewWithDelay(baseDelay = 120){
+  let changed = false
+  
+  for(let y=0; y<SIZE; y++){
+    for(let x=0; x<SIZE; x++){
+      if(board[y][x] === null){
+        board[y][x] = randomColor()
+        changed = true
+      }
+    }
+  }
+  
+  if(changed){
+    renderBoard()
+    await delay(baseDelay)
+  }
+}
+
+
+// ================= ВИЗУАЛЬНЫЙ ЭФФЕКТ ДЛЯ МАТЧА =================
+
+async function showMatchEffect(match){
+  match.cells.forEach(cellPos => {
+    const el = cells[cellPos.y]?.[cellPos.x]
+    if(el) el.classList.add("matchFlash")
+  })
+  
+  if(match.type === "rocket"){
+    await showRocketEffect(match.cells)
+  } else if(match.type === "bomb"){
+    await showBombEffect(match.cells)
+  } else if(match.type === "color"){
+    await showRainbowEffect()
+  }
+  
+  await delay(200)
+  
+  match.cells.forEach(cellPos => {
+    const el = cells[cellPos.y]?.[cellPos.x]
+    if(el) el.classList.remove("matchFlash")
+  })
+}
+
+async function showRocketEffect(matchCells){
+  if(!matchCells || matchCells.length === 0) return
+  
+  const center = matchCells[Math.floor(matchCells.length / 2)]
+  
+  for(let i=0; i<SIZE; i++){
+    if(cells[center.y] && cells[center.y][i]){
+      cells[center.y][i].classList.add("rocketLine")
+      setTimeout(() => {
+        if(cells[center.y] && cells[center.y][i]) 
+          cells[center.y][i].classList.remove("rocketLine")
+      }, 300)
+    }
+    if(cells[i] && cells[i][center.x]){
+      cells[i][center.x].classList.add("rocketLine")
+      setTimeout(() => {
+        if(cells[i] && cells[i][center.x])
+          cells[i][center.x].classList.remove("rocketLine")
+      }, 300)
+    }
+  }
+  
+  await delay(250)
+}
+
+async function showBombEffect(matchCells){
+  if(!matchCells || matchCells.length === 0) return
+  
+  const center = matchCells[0]
+  
+  for(let dy=-1; dy<=1; dy++){
+    for(let dx=-1; dx<=1; dx++){
+      const x = center.x + dx
+      const y = center.y + dy
+      if(x>=0 && x<SIZE && y>=0 && y<SIZE && cells[y] && cells[y][x]){
+        cells[y][x].classList.add("bombBlast")
+        setTimeout(() => {
+          if(cells[y] && cells[y][x])
+            cells[y][x].classList.remove("bombBlast")
+        }, 300)
+      }
+    }
+  }
+  
+  await delay(250)
+}
+
+async function showRainbowEffect(){
+  for(let y=0; y<SIZE; y++){
+    for(let x=0; x<SIZE; x++){
+      const cell = board[y][x]
+      const color = typeof cell === "string" ? cell : cell?.color
+      if(color && cells[y] && cells[y][x]){
+        cells[y][x].classList.add("rainbowFlash")
+        setTimeout(() => {
+          if(cells[y] && cells[y][x])
+            cells[y][x].classList.remove("rainbowFlash")
+        }, 400)
+      }
+    }
+  }
+  await delay(300)
+}
+
+
+// ================= DROP (ОБЫЧНЫЙ - ДЛЯ СОВМЕСТИМОСТИ) =================
+
+function drop(){
+  for(let x=0; x<SIZE; x++){
+    for(let y=SIZE-1; y>=0; y--){
+      if(board[y][x] === null){
+        for(let k=y-1; k>=0; k--){
+          if(board[k][x] !== null){
+            board[y][x] = board[k][x]
+            board[k][x] = null
+            break
           }
         }
-        count = 1;
       }
-    }
-    if (count >= 3) {
-      for (let i = 0; i < count; i++) {
-        matches.push({ x, y: SIZE-1-i });
+      
+      if(board[y][x] === null){
+        board[y][x] = randomColor()
       }
     }
   }
-  
-  return matches;
 }
+
+
+// ================= SPAWN (ОБЫЧНЫЙ - ДЛЯ СОВМЕСТИМОСТИ) =================
+
+function spawnNew(){
+  for(let y=0; y<SIZE; y++){
+    for(let x=0; x<SIZE; x++){
+      if(board[y][x] === null){
+        board[y][x] = randomColor()
+      }
+    }
+  }
+}
+
+// ================= PROCESS MATCH (ОБЫЧНЫЙ - ДЛЯ СОВМЕСТИМОСТИ) =================
+
+function processMatches(){
+  const matches = MatchDetection.getMatches(board)
+  
+  if(matches.length === 0){
+    checkWin()
+    if(!hasPossibleMoves()){
+      shuffleBoard()
+    }
+    return
+  }
+  
+  matches.forEach(match => {
+    let specialCell = null
+    
+    if(match.type === "rocket") specialCell = match.cells[1]
+    if(match.type === "color") specialCell = match.cells[2]
+    if(match.type === "bomb") specialCell = match.cells[0]
+    
+    match.cells.forEach(cellPos => {
+      if(specialCell && cellPos.x === specialCell.x && cellPos.y === specialCell.y) return
+      
+      let cell = board[cellPos.y][cellPos.x]
+      
+      if(typeof cell === "object" && cell !== null){
+        Specials.activate(cellPos.x, cellPos.y)
+      }
+      
+      score += 50
+      board[cellPos.y][cellPos.x] = null
+    })
+    
+    if(specialCell){
+      board[specialCell.y][specialCell.x] = {
+        color: randomColor(),
+        special: match.type,
+        type: "special"
+      }
+    }
+  })
+  
+  drop()
+  spawnNew()
+  renderBoard()
+  
+  setTimeout(processMatches, 100)
+}
+
 
 // ================= POSSIBLE MOVES =================
 
-function hasPossibleMoves() {
-  for (let y = 0; y < SIZE; y++) {
-    for (let x = 0; x < SIZE; x++) {
-      if (x < SIZE - 1) {
-        swapTest(x, y, x + 1, y);
-        if (checkMatches().length > 0) {
-          swapTest(x, y, x + 1, y);
-          return true;
+function hasPossibleMoves(){
+  for(let y=0; y<SIZE; y++){
+    for(let x=0; x<SIZE; x++){
+      if(x < SIZE-1){
+        swapTest(x, y, x+1, y)
+        if(checkMatches().length > 0){
+          swapTest(x, y, x+1, y)
+          return true
         }
-        swapTest(x, y, x + 1, y);
+        swapTest(x, y, x+1, y)
       }
       
-      if (y < SIZE - 1) {
-        swapTest(x, y, x, y + 1);
-        if (checkMatches().length > 0) {
-          swapTest(x, y, x, y + 1);
-          return true;
+      if(y < SIZE-1){
+        swapTest(x, y, x, y+1)
+        if(checkMatches().length > 0){
+          swapTest(x, y, x, y+1)
+          return true
         }
-        swapTest(x, y, x, y + 1);
+        swapTest(x, y, x, y+1)
       }
     }
   }
-  return false;
+  return false
 }
 
-function swapTest(x1, y1, x2, y2) {
-  const temp = board[y1][x1];
-  board[y1][x1] = board[y2][x2];
-  board[y2][x2] = temp;
+function swapTest(x1, y1, x2, y2){
+  const temp = board[y1][x1]
+  board[y1][x1] = board[y2][x2]
+  board[y2][x2] = temp
 }
+
 
 // ================= SHUFFLE =================
 
-async function shuffleBoard() {
-  gameState.setState('processing');
-  
-  do {
-    for (let y = 0; y < SIZE; y++) {
-      for (let x = 0; x < SIZE; x++) {
-        board[y][x] = randomColor();
-      }
+function shuffleBoard(){
+  for(let y=0; y<SIZE; y++){
+    for(let x=0; x<SIZE; x++){
+      board[y][x] = randomColor()
     }
-  } while (hasPossibleMoves());
-  
-  renderBoard();
-  await delay(500);
-  
-  gameState.setState('idle');
+  }
+  renderBoard()
 }
+
 
 // ================= HINT SYSTEM =================
 
-function startHintTimer() {
-  clearTimeout(hintTimer);
-  hintTimer = setTimeout(() => {
-    if (!actionLock.isLocked() && !gameState.isAnimating()) {
-      showHint();
-    }
-  }, 4000);
+function startHintTimer(){
+  clearTimeout(hintTimer)
+  hintTimer = setTimeout(showHint, 4000)
 }
 
-function showHint() {
-  if (actionLock.isLocked() || gameState.isAnimating()) return;
+function showHint(){
+  if(gameLocked || isAnimating || isProcessingSpecial) return
   
-  for (let y = 0; y < SIZE; y++) {
-    for (let x = 0; x < SIZE; x++) {
-      if (x < SIZE - 1) {
-        swapTest(x, y, x + 1, y);
-        let matches = checkMatches();
-        swapTest(x, y, x + 1, y);
-        if (matches.length > 0) {
-          highlightHint(x, y);
-          return;
+  for(let y=0; y<SIZE; y++){
+    for(let x=0; x<SIZE; x++){
+      if(x < SIZE-1){
+        swapTest(x, y, x+1, y)
+        let matches = checkMatches()
+        swapTest(x, y, x+1, y)
+        if(matches.length > 0){
+          highlightHint(x, y)
+          return
         }
       }
       
-      if (y < SIZE - 1) {
-        swapTest(x, y, x, y + 1);
-        let matches = checkMatches();
-        swapTest(x, y, x, y + 1);
-        if (matches.length > 0) {
-          highlightHint(x, y);
-          return;
+      if(y < SIZE-1){
+        swapTest(x, y, x, y+1)
+        let matches = checkMatches()
+        swapTest(x, y, x, y+1)
+        if(matches.length > 0){
+          highlightHint(x, y)
+          return
         }
       }
     }
   }
 }
 
-function highlightHint(x, y) {
-  clearHints();
-  cells[y][x].classList.add("hint");
-  setTimeout(() => clearHints(), 2000);
+function highlightHint(x, y){
+  clearHints()
+  cells[y][x].classList.add("hint")
+  setTimeout(() => clearHints(), 2000)
 }
 
-function clearHints() {
-  for (let y = 0; y < SIZE; y++) {
-    for (let x = 0; x < SIZE; x++) {
-      cells[y][x].classList.remove("hint");
+function clearHints(){
+  for(let y=0; y<SIZE; y++){
+    for(let x=0; x<SIZE; x++){
+      cells[y][x].classList.remove("hint")
     }
   }
 }
 
-// ================= UTILITY =================
-
-function delay(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
 
 // ================= HUD =================
 
-function updateHUD() {
-  document.getElementById("movesDisplay").innerText = `Ходы: ${movesLeft}`;
+function updateHUD(){
+  document.getElementById("movesDisplay").innerText = `Ходы: ${movesLeft}`
   
-  if (levelData.type === "score") {
-    document.getElementById("targetDisplay").innerText = `Цель: ${score} / ${levelData.target}`;
+  if(levelData.type === "score"){
+    document.getElementById("targetDisplay").innerText = `Цель: ${score} / ${levelData.target}`
   }
 }
+
 
 // ================= WIN CHECK =================
 
-function checkWin() {
-  if (levelFinished || actionLock.isLocked()) return;
+function checkWin(){
+  if(levelFinished) return
   
-  if (levelData.type === "score" && score >= levelData.target) {
-    winLevel();
-    return;
+  if(levelData.type === "score" && score >= levelData.target){
+    winLevel()
+    return
   }
   
-  if (movesLeft <= 0) {
-    loseLevel();
+  if(movesLeft <= 0){
+    loseLevel()
   }
 }
 
+
 // ================= WIN =================
 
-function winLevel() {
-  if (levelFinished) return;
+function winLevel(){
+  if(levelFinished) return
   
-  levelFinished = true;
-  gameLocked = true;
-  gameState.setState('locked');
-  actionLock.clearAll();
+  levelFinished = true
+  gameLocked = true
   
-  animateCoins();
+  animateCoins()
   
   setTimeout(() => {
-    addCoins(levelData.reward);
-    updateCoinsUI();
-  }, 700);
+    addCoins(levelData.reward)
+    updateCoinsUI()
+  }, 700)
   
   showPopup(`
     <h2>Победа!</h2>
     <p>Награда: ${levelData.reward} монет</p>
     <button onclick="nextLevel()">Далее</button>
-  `);
+  `)
 }
+
 
 // ================= LOSE =================
 
-function loseLevel() {
-  if (levelFinished) return;
+function loseLevel(){
+  if(levelFinished) return
   
-  levelFinished = true;
-  gameLocked = true;
-  gameState.setState('locked');
-  actionLock.clearAll();
+  levelFinished = true
+  gameLocked = true
   
-  LivesSystem.useLife();
+  LivesSystem.useLife()
   
   showPopup(`
     <h2>Поражение</h2>
     <button onclick="restartLevel()">Заново</button>
-  `);
+  `)
 }
 
-// ================= LEVEL NAVIGATION =================
 
-function nextLevel() {
-  currentLevel++;
-  hidePopup();
-  initLevel();
+// ================= LEVEL =================
+
+function nextLevel(){
+  currentLevel++
+  hidePopup()
+  initLevel()
 }
 
-function restartLevel() {
-  if (!LivesSystem.useLife()) return;
-  hidePopup();
-  initLevel();
+function restartLevel(){
+  if(!LivesSystem.useLife()) return
+  hidePopup()
+  initLevel()
 }
+
 
 // ================= COINS =================
 
-function updateCoinsUI() {
-  const el = document.getElementById("coinsDisplay");
-  if (el) {
-    el.innerText = "💰 " + getCoins();
+function updateCoinsUI(){
+  const el = document.getElementById("coinsDisplay")
+  if(el){
+    el.innerText = "💰 " + getCoins()
   }
 }
 
-function animateCoins() {
-  const coinsEl = document.getElementById("coinsDisplay");
-  const rect = coinsEl.getBoundingClientRect();
+function animateCoins(){
+  const coinsEl = document.getElementById("coinsDisplay")
+  const rect = coinsEl.getBoundingClientRect()
   
-  for (let i = 0; i < 10; i++) {
-    const coin = document.createElement("div");
-    coin.innerHTML = "💰";
-    coin.className = "coinFly";
-    coin.style.left = window.innerWidth / 2 + "px";
-    coin.style.top = window.innerHeight / 2 + "px";
-    document.body.appendChild(coin);
+  for(let i=0; i<10; i++){
+    const coin = document.createElement("div")
+    coin.innerHTML = "💰"
+    coin.className = "coinFly"
+    coin.style.left = window.innerWidth/2 + "px"
+    coin.style.top = window.innerHeight/2 + "px"
+    document.body.appendChild(coin)
     
     setTimeout(() => {
-      coin.style.transform = `translate(${rect.left - window.innerWidth/2}px, ${rect.top - window.innerHeight/2}px) scale(0.5)`;
-      coin.style.opacity = "0";
-    }, 20);
+      coin.style.transform = `translate(${rect.left - window.innerWidth/2}px, ${rect.top - window.innerHeight/2}px) scale(0.5)`
+      coin.style.opacity = "0"
+    }, 20)
     
-    setTimeout(() => coin.remove(), 900);
+    setTimeout(() => coin.remove(), 900)
   }
-}
-
-// ================= ВИЗУАЛЬНЫЕ ЭФФЕКТЫ =================
-
-async function showMatchEffect(match) {
-  match.cells.forEach(cellPos => {
-    const el = cells[cellPos.y]?.[cellPos.x];
-    if (el) el.classList.add("matchFlash");
-  });
-  
-  if (match.type === "rocket") {
-    await showRocketEffect(match.cells);
-  } else if (match.type === "bomb") {
-    await showBombEffect(match.cells);
-  } else if (match.type === "color") {
-    await showRainbowEffect();
   }
-  
-  await delay(200);
-  
-  match.cells.forEach(cellPos => {
-    const el = cells[cellPos.y]?.[cellPos.x];
-    if (el) el.classList.remove("matchFlash");
-  });
-}
-
-async function showRocketEffect(matchCells) {
-  if (!matchCells || matchCells.length === 0) return;
-  
-  const center = matchCells[Math.floor(matchCells.length / 2)];
-  
-  for (let i = 0; i < SIZE; i++) {
-    if (cells[center.y]?.[i]) {
-      cells[center.y][i].classList.add("rocketLine");
-      setTimeout(() => cells[center.y]?.[i]?.classList.remove("rocketLine"), 300);
-    }
-    if (cells[i]?.[center.x]) {
-      cells[i][center.x].classList.add("rocketLine");
-      setTimeout(() => cells[i]?.[center.x]?.classList.remove("rocketLine"), 300);
-    }
-  }
-  
-  await delay(250);
-}
-
-async function showBombEffect(matchCells) {
-  if (!matchCells || matchCells.length === 0) return;
-  
-  const center = matchCells[0];
-  
-  for (let dy = -1; dy <= 1; dy++) {
-    for (let dx = -1; dx <= 1; dx++) {
-      const x = center.x + dx;
-      const y = center.y + dy;
-      if (x >= 0 && x < SIZE && y >= 0 && y < SIZE && cells[y]?.[x]) {
-        cells[y][x].classList.add("bombBlast");
-        setTimeout(() => cells[y]?.[x]?.classList.remove("bombBlast"), 300);
-      }
-    }
-  }
-  
-  await delay(250);
-}
-
-async function showRainbowEffect() {
-  for (let y = 0; y < SIZE; y++) {
-    for (let x = 0; x < SIZE; x++) {
-      const cell = board[y][x];
-      const color = typeof cell === "string" ? cell : cell?.color;
-      if (color && cells[y]?.[x]) {
-        cells[y][x].classList.add("rainbowFlash");
-        setTimeout(() => cells[y]?.[x]?.classList.remove("rainbowFlash"), 400);
-      }
-    }
-  }
-  await delay(300);
-}
