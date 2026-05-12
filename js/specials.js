@@ -12,25 +12,29 @@ const Specials = {
     return new Promise(resolve => setTimeout(resolve, ms))
   },
 
-  // ===== АКТИВАЦИЯ СПЕЦА С ЗАДЕРЖКОЙ =====
+  // ===== АКТИВАЦИЯ СПЕЦА С ЗАДЕРЖКОЙ (ОСНОВНОЙ МЕТОД) =====
   async activateWithDelay(x, y, color = null){
-    const cell = board[y]?.[x]
+    // Проверяем что мы не в процессе анимации
+    if(isAnimating) return
     
+    const cell = board[y]?.[x]
     if(!cell) return
     
     const isSpecial = (cell.type === "special") || (cell.special !== undefined)
     if(!isSpecial) return
     
     let specialType = cell.special || null
-    if(!specialType && cell.type === "special") specialType = cell.special
-    
     if(!specialType) return
     
+    // Показываем эффект активации
     await this.showSpecialEffect(x, y, specialType)
-    await this.delay(400)
+    await this.delay(200)
     
+    // Удаляем special плитку
     board[y][x] = null
+    renderBoard()
     
+    // Активируем эффект
     const map = {
       rocket: this.rocketWithDelay,
       bomb: this.bombWithDelay,
@@ -40,48 +44,43 @@ const Specials = {
     if(map[specialType]){
       await map[specialType].call(this, x, y, color || cell.color)
     }
+    
+    // После активации делаем gravity
+    await this.delay(100)
   },
   
+  // ===== ВИЗУАЛЬНЫЙ ЭФФЕКТ АКТИВАЦИИ =====
   async showSpecialEffect(x, y, type){
     if(!cells[y] || !cells[y][x]) return
     
     const el = cells[y][x]
     
+    // Очищаем предыдущие классы
     el.classList.remove("specialRocket", "specialBomb", "specialRainbow", "matchFlash")
+    
+    // Принудительный reflow для перезапуска анимации
     void el.offsetHeight
     
     if(type === "rocket"){
       el.classList.add("specialRocket")
-      for(let i=0; i<3; i++){
-        setTimeout(() => {
-          if(cells[y]?.[x]) {
-            cells[y][x].style.transform = `translate(${Math.random() * 4 - 2}px, ${Math.random() * 4 - 2}px)`
-          }
-        }, i * 50)
-      }
       setTimeout(() => {
-        if(cells[y] && cells[y][x]) {
-          cells[y][x].style.transform = ""
+        if(cells[y]?.[x]) {
           cells[y][x].classList.remove("specialRocket")
         }
       }, 350)
     } 
     else if(type === "bomb"){
       el.classList.add("specialBomb")
-      el.style.animation = "bombCharge 0.3s ease-out 3"
       setTimeout(() => {
-        if(cells[y] && cells[y][x]) {
-          cells[y][x].style.animation = ""
+        if(cells[y]?.[x]) {
           cells[y][x].classList.remove("specialBomb")
         }
       }, 350)
     } 
     else if(type === "color"){
       el.classList.add("specialRainbow")
-      el.style.animation = "rainbowCharge 0.4s ease-out 2"
       setTimeout(() => {
-        if(cells[y] && cells[y][x]) {
-          cells[y][x].style.animation = ""
+        if(cells[y]?.[x]) {
           cells[y][x].classList.remove("specialRainbow")
         }
       }, 400)
@@ -92,25 +91,15 @@ const Specials = {
 
   // ===== РАКЕТА С ЗАДЕРЖКОЙ =====
   async rocketWithDelay(x, y){
+    // Показываем анимацию линий
     for(let i=0; i<SIZE; i++){
       if(cells[y] && cells[y][i]) {
-        cells[y][i].classList.remove("rocketLine", "matchFlash")
-      }
-      if(cells[i] && cells[i][x]) {
-        cells[i][x].classList.remove("rocketLine", "matchFlash")
-      }
-    }
-    
-    void document.body.offsetHeight
-    
-    for(let i=0; i<SIZE; i++){
-      if(cells[y] && cells[y][i]){
         cells[y][i].classList.add("rocketLine")
         setTimeout(() => {
           if(cells[y] && cells[y][i]) cells[y][i].classList.remove("rocketLine")
         }, 400)
       }
-      if(cells[i] && cells[i][x]){
+      if(cells[i] && cells[i][x]) {
         cells[i][x].classList.add("rocketLine")
         setTimeout(() => {
           if(cells[i] && cells[i][x]) cells[i][x].classList.remove("rocketLine")
@@ -120,9 +109,19 @@ const Specials = {
     
     await this.delay(350)
     
+    // Уничтожаем ряд и колонку
     for(let i=0; i<SIZE; i++){
-      if(board[y] && board[y][i]) board[y][i] = null
-      if(board[i] && board[i][x]) board[i][x] = null
+      if(board[y] && board[y][i] !== undefined) {
+        // Если там другая special - не трогаем
+        const cell = board[y][i]
+        if(typeof cell === "object" && cell !== null && cell.special) continue
+        board[y][i] = null
+      }
+      if(board[i] && board[i][x] !== undefined) {
+        const cell = board[i][x]
+        if(typeof cell === "object" && cell !== null && cell.special) continue
+        board[i][x] = null
+      }
     }
     
     renderBoard()
@@ -131,24 +130,7 @@ const Specials = {
 
   // ===== БОМБА С ЗАДЕРЖКОЙ =====
   async bombWithDelay(x, y){
-    for(let yy=y-1; yy<=y+1; yy++){
-      for(let xx=x-1; xx<=x+1; xx++){
-        if(xx>=0 && yy>=0 && xx<SIZE && yy<SIZE && cells[yy] && cells[yy][xx]){
-          cells[yy][xx].classList.remove("bombBlast", "matchFlash", "bombShockwave")
-        }
-      }
-    }
-    
-    void document.body.offsetHeight
-    
-    const centerEl = cells[y]?.[x]
-    if(centerEl) {
-      centerEl.classList.add("bombCore")
-      setTimeout(() => {
-        if(cells[y]?.[x]) cells[y][x].classList.remove("bombCore")
-      }, 200)
-    }
-    
+    // Анимация взрыва
     for(let yy=y-1; yy<=y+1; yy++){
       for(let xx=x-1; xx<=x+1; xx++){
         if(xx>=0 && yy>=0 && xx<SIZE && yy<SIZE && cells[yy] && cells[yy][xx]){
@@ -160,27 +142,17 @@ const Specials = {
       }
     }
     
-    await this.delay(150)
-    
-    for(let yy=y-2; yy<=y+2; yy++){
-      for(let xx=x-2; xx<=x+2; xx++){
-        if(xx>=0 && yy>=0 && xx<SIZE && yy<SIZE && cells[yy] && cells[yy][xx]){
-          if(Math.abs(xx-x) > 1 || Math.abs(yy-y) > 1){
-            cells[yy][xx].classList.add("bombShockwave")
-            setTimeout(() => {
-              if(cells[yy] && cells[yy][xx]) cells[yy][xx].classList.remove("bombShockwave")
-            }, 300)
-          }
-        }
-      }
-    }
-    
     await this.delay(200)
     
+    // Уничтожаем область 3x3
     for(let yy=y-1; yy<=y+1; yy++){
       for(let xx=x-1; xx<=x+1; xx++){
         if(xx>=0 && yy>=0 && xx<SIZE && yy<SIZE){
-          if(board[yy] && board[yy][xx] !== undefined) board[yy][xx] = null
+          if(board[yy] && board[yy][xx] !== undefined) {
+            const cell = board[yy][xx]
+            if(typeof cell === "object" && cell !== null && cell.special) continue
+            board[yy][xx] = null
+          }
         }
       }
     }
@@ -193,6 +165,7 @@ const Specials = {
   async colorBombWithDelay(x, y, color = null){
     let targetColor = color
     
+    // Если цвет не указан, берём первый попавшийся цвет на доске
     if(!targetColor){
       for(let yy=0; yy<SIZE; yy++){
         for(let xx=0; xx<SIZE; xx++){
@@ -212,25 +185,7 @@ const Specials = {
     
     if(!targetColor) return
     
-    for(let yy=0; yy<SIZE; yy++){
-      for(let xx=0; xx<SIZE; xx++){
-        if(cells[yy] && cells[yy][xx]) {
-          cells[yy][xx].classList.remove("rainbowFlash", "matchFlash", "rainbowPulse")
-        }
-      }
-    }
-    
-    void document.body.offsetHeight
-    
-    const centerEl = cells[y]?.[x]
-    if(centerEl) {
-      centerEl.classList.add("rainbowCore")
-      setTimeout(() => {
-        if(cells[y]?.[x]) cells[y][x].classList.remove("rainbowCore")
-      }, 300)
-    }
-    
-    const targetCells = []
+    // Анимация для всех плиток целевого цвета
     for(let yy=0; yy<SIZE; yy++){
       for(let xx=0; xx<SIZE; xx++){
         const cell = board[yy]?.[xx]
@@ -240,36 +195,17 @@ const Specials = {
         else if(typeof cell === "object" && cell !== null) cellColor = cell.color
         
         if(cellColor === targetColor && cells[yy] && cells[yy][xx]){
-          targetCells.push({x: xx, y: yy})
-        }
-      }
-    }
-    
-    for(let i=0; i<targetCells.length; i++){
-      const {x: xx, y: yy} = targetCells[i]
-      setTimeout(() => {
-        if(cells[yy] && cells[yy][xx]) {
           cells[yy][xx].classList.add("rainbowFlash")
           setTimeout(() => {
             if(cells[yy] && cells[yy][xx]) cells[yy][xx].classList.remove("rainbowFlash")
           }, 400)
         }
-      }, i * 15)
-    }
-    
-    for(let yy=0; yy<SIZE; yy++){
-      for(let xx=0; xx<SIZE; xx++){
-        if(cells[yy] && cells[yy][xx]) {
-          cells[yy][xx].classList.add("rainbowPulse")
-          setTimeout(() => {
-            if(cells[yy] && cells[yy][xx]) cells[yy][xx].classList.remove("rainbowPulse")
-          }, 500)
-        }
       }
     }
     
-    await this.delay(400)
+    await this.delay(300)
     
+    // Уничтожаем все плитки целевого цвета
     for(let yy=0; yy<SIZE; yy++){
       for(let xx=0; xx<SIZE; xx++){
         const cell = board[yy]?.[xx]
@@ -278,7 +214,10 @@ const Specials = {
           board[yy][xx] = null
         }
         else if(typeof cell === "object" && cell !== null && cell.color === targetColor){
-          board[yy][xx] = null
+          // Не уничтожаем другие special плитки
+          if(!cell.special) {
+            board[yy][xx] = null
+          }
         }
       }
     }
@@ -287,8 +226,11 @@ const Specials = {
     await this.delay(150)
   },
 
-  // ===== ОРИГИНАЛЬНЫЕ МЕТОДЫ (для обратной совместимости) =====
+  // ===== СИНХРОННЫЕ МЕТОДЫ (для обратной совместимости, с защитой) =====
   activate(x, y, color = null){
+    // Проверка чтобы избежать двойной активации
+    if(isAnimating) return
+    
     const cell = board[y]?.[x]
     if(!cell) return
     
@@ -296,9 +238,9 @@ const Specials = {
     if(!isSpecial) return
     
     let specialType = cell.special || null
-    if(!specialType && cell.type === "special") specialType = cell.special
     if(!specialType) return
     
+    // Удаляем special плитку
     board[y][x] = null
     
     const map = {
@@ -310,12 +252,14 @@ const Specials = {
     if(map[specialType]){
       map[specialType].call(this, x, y, color || cell.color)
     }
+    
+    renderBoard()
   },
 
   rocket(x, y){
     for(let i=0; i<SIZE; i++){
-      if(board[y] && board[y][i]) board[y][i] = null
-      if(board[i] && board[i][x]) board[i][x] = null
+      if(board[y] && board[y][i] !== undefined) board[y][i] = null
+      if(board[i] && board[i][x] !== undefined) board[i][x] = null
     }
   },
 
@@ -364,4 +308,4 @@ const Specials = {
       }
     }
   }
-       }
+           }
