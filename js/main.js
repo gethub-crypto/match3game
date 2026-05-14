@@ -427,21 +427,22 @@ async function processMatchesAsync(){
       specialCell = match.cells[2]
     }
     
-    // Удаляем ВСЕ ячейки матча
+    // 🔧 FIX: Защита special плиток от удаления при обычных матчах
+    // Special плитки НЕ удаляются при обычных совпадениях, только при активации игроком
     for(const cellPos of match.cells){
       const cell = board[cellPos.y][cellPos.x]
       
-      // Если это существующая special плитка - просто удаляем, НЕ активируем
+      // Если это special плитка - ПРОПУСКАЕМ, не удаляем её
       if(typeof cell === "object" && cell !== null && cell.special){
-        board[cellPos.y][cellPos.x] = null
-        continue
+        continue // 🔧 Не удаляем, оставляем на доске
       }
       
+      // Удаляем только обычные цветные плитки
       score += 50
       board[cellPos.y][cellPos.x] = null
     }
     
-    // Создаём НОВУЮ special плитку
+    // 🔧 FIX: Создаём special плитку только если место свободно и там НЕ осталась другая special плитка
     if(specialCell && specialType && board[specialCell.y][specialCell.x] === null){
       board[specialCell.y][specialCell.x] = {
         color: randomColor(),
@@ -478,6 +479,7 @@ async function processMatchesAsync(){
 async function dropWithDelay(baseDelay = 150){
   let changed = false
   
+  // 🔧 FIX: При gravity специальные плитки падают как обычные, но не удаляются
   for(let x=0; x<SIZE; x++){
     let emptySpaces = 0
     
