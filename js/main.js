@@ -19,6 +19,70 @@ let isAnimating = false
 let lastClickTime = 0
 const CLICK_COOLDOWN = 150 // мс между кликами
 
+// ================= COMBO SYSTEM (PRODUCTION-READY) =================
+/**
+ * ComboManager - Легковесный менеджер комбо-системы
+ * 
+ * Архитектура:
+ * - Комбо активируется только во время каскадов (chain reactions)
+ * - Первый матч хода игрока НЕ увеличивает комбо
+ * - Каждый последующий каскад увеличивает комбо на 1
+ * - Сброс происходит при новом ходе игрока или завершении каскадов
+ * 
+ * Защита от багов:
+ * - Флаг comboActive предотвращает дублирование инкрементов
+ * - Сброс гарантирован при новом свайпе
+ * - Множитель применяется только к базовым очкам матча
+ */
+const ComboManager = {
+  combo: 0,
+  comboActive: false, // Флаг активной комбо-цепочки
+  firstMatchInChain: true, // Первый матч в цепочке (ход игрока)
+  
+  /**
+   * Вызывается при обнаружении любого матча
+   * Увеличивает комбо только если это каскад (не первый матч)
+   */
+  onMatchDetected() {
+    if (this.firstMatchInChain) {
+      // Первый матч - не увеличиваем комбо, но активируем цепочку
+      this.firstMatchInChain = false
+      this.comboActive = true
+    } else if (this.comboActive) {
+      // Каскад - увеличиваем комбо
+      this.combo++
+      console.log(`🔥 Combo x${this.combo + 1}! Chain continuing...`)
+    }
+  },
+  
+  /**
+   * Возвращает текущий множитель комбо
+   * Минимальный множитель = 1 (нет комбо)
+   */
+  getMultiplier() {
+    return this.comboActive ? (this.combo + 1) : 1
+  },
+  
+  /**
+   * Сброс комбо (вызывается при новом ходе или завершении каскадов)
+   */
+  reset() {
+    if (this.combo > 0) {
+      console.log(`✨ Combo finished! Total chain: ${this.combo + 1} matches`)
+    }
+    this.combo = 0
+    this.comboActive = false
+    this.firstMatchInChain = true
+  },
+  
+  /**
+   * Проверка активности комбо
+   */
+  isActive() {
+    return this.comboActive
+  }
+}
+
 const SIZE = 8
 const COLORS = ["red","blue","green","yellow","purple"]
 
@@ -62,6 +126,9 @@ function initLevel(){
   
   // ✨ ANTI-SPAM: Сбрасываем таймер при новом уровне
   lastClickTime = 0
+  
+  // ✨ COMBO: Сбрасываем комбо при новом уровне
+  ComboManager.reset()
   
   levelData = Levels.get(currentLevel)
   
@@ -254,6 +321,9 @@ async function onCellClick(x, y){
     return
   }
   
+  // ✨ COMBO: Сбрасываем комбо при новом ходе игрока
+  ComboManager.reset()
+  
   isAnimating = true
   
   const a = {x: selected.x, y: selected.y}
@@ -292,12 +362,19 @@ async function onCellClick(x, y){
     await spawnNewWithDelay(150)
     renderBoard()
     
+    // ✨ COMBO: Активируем комбо-цепочку для special
+    ComboManager.firstMatchInChain = false
+    ComboManager.comboActive = true
+    
     await processMatchesAsync()
     
     updateHUD()
     checkWin()
     startHintTimer()
     isAnimating = false
+    
+    // ✨ COMBO: Сбрасываем после завершения цепочки
+    ComboManager.reset()
     return
   }
   
@@ -318,6 +395,7 @@ async function onCellClick(x, y){
   movesLeft--
   updateHUD()
   
+  // ✨ COMBO: Начинаем комбо-цепочку с первого матча игрока
   await processMatchesAsync()
   
   updateHUD()
@@ -325,6 +403,9 @@ async function onCellClick(x, y){
   startHintTimer()
   
   isAnimating = false
+  
+  // ✨ COMBO: Сбрасываем после завершения всей цепочки
+  ComboManager.reset()
 }
 
 
@@ -402,6 +483,9 @@ async function processMatchesAsync(){
     return
   }
   
+  // ✨ COMBO: Уведомляем менеджер о найденном матче
+  ComboManager.onMatchDetected()
+  
   for(const match of matches){
     
     // Подсвечиваем ячейки матча
@@ -438,7 +522,17 @@ async function processMatchesAsync(){
       }
       
       // Удаляем только обычные цветные плитки
-      score += 50
+      // ✨ COMBO: Применяем множитель к базовым очкам
+      const baseScore = 50
+      const comboMultiplier = ComboManager.getMultiplier()
+      const finalScore = baseScore * comboMultiplier
+      score += finalScore
+      
+      // Визуальная обратная связь для комбо (опционально)
+      if (comboMultiplier > 1) {
+        console.log(`💥 Combo x${comboMultiplier}! +${finalScore} points (base: ${baseScore})`)
+      }
+      
       board[cellPos.y][cellPos.x] = null
     }
     
@@ -469,7 +563,7 @@ async function processMatchesAsync(){
   
   updateHUD()
   
-  // Проверяем новые матчи (каскады)
+  // Проверяем новые матчи (каскады) - комбо будет расти автоматически
   await processMatchesAsync()
 }
 
@@ -804,41 +898,4 @@ function nextLevel(){
   currentLevel++
   hidePopup()
   initLevel()
-}
-
-function restartLevel(){
-  if(!LivesSystem.useLife()) return
-  hidePopup()
-  initLevel()
-}
-
-
-// ================= COINS =================
-
-function updateCoinsUI(){
-  const el = document.getElementById("coinsDisplay")
-  if(el){
-    el.innerText = "💰 " + getCoins()
-  }
-}
-
-function animateCoins(){
-  const coinsEl = document.getElementById("coinsDisplay")
-  const rect = coinsEl.getBoundingClientRect()
-  
-  for(let i=0; i<10; i++){
-    const coin = document.createElement("div")
-    coin.innerHTML = "💰"
-    coin.className = "coinFly"
-    coin.style.left = window.innerWidth/2 + "px"
-    coin.style.top = window.innerHeight/2 + "px"
-    document.body.appendChild(coin)
-    
-    setTimeout(() => {
-      coin.style.transform = `translate(${rect.left - window.innerWidth/2}px, ${rect.top - window.innerHeight/2}px) scale(0.5)`
-      coin.style.opacity = "0"
-    }, 20)
-    
-    setTimeout(() => coin.remove(), 900)
-  }
-    }
+      
