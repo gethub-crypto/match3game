@@ -898,4 +898,42 @@ function nextLevel(){
   currentLevel++
   hidePopup()
   initLevel()
-      
+}
+
+function restartLevel(){
+  if(!LivesSystem.useLife()) return
+  hidePopup()
+  initLevel()
+}
+
+
+// ================= COINS =================
+
+function updateCoinsUI(){
+  const el = document.getElementById("coinsDisplay")
+  if(el){
+    el.innerText = "💰 " + getCoins()
+  }
+}
+
+function animateCoins(){
+  const coinsEl = document.getElementById("coinsDisplay")
+  const rect = coinsEl.getBoundingClientRect()
+  
+  for(let i=0; i<10; i++){
+    const coin = document.createElement("div")
+    coin.innerHTML = "💰"
+    coin.className = "coinFly"
+    coin.style.left = window.innerWidth/2 + "px"
+    coin.style.top = window.innerHeight/2 + "px"
+    document.body.appendChild(coin)
+    
+    setTimeout(() => {
+      coin.style.transform = `translate(${rect.left - window.innerWidth/2}px, ${rect.top - window.innerHeight/2}px) scale(0.5)`
+      coin.style.opacity = "0"
+    }, 20)
+    
+    setTimeout(() => coin.remove(), 900)
+  }
+}
+    
