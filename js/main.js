@@ -177,12 +177,14 @@ function setColor(cell, data){
 
 
 // ================= SWIPE / MOUSE =================
+// FIX: Полностью переписана логика ввода
 
 function addSwipe(cell, x, y){
   let startX = 0
   let startY = 0
   let isDragging = false
   let swipeDirection = null
+  let hasMoved = false
   
   function onStart(clientX, clientY){
     const now = Date.now()
@@ -191,6 +193,7 @@ function addSwipe(cell, x, y){
     
     lastClickTime = now
     isDragging = true
+    hasMoved = false
     swipeDirection = null
     
     startX = clientX
@@ -198,6 +201,11 @@ function addSwipe(cell, x, y){
     selected = {x, y}
     highlightCell(x, y)
     return true
+  }
+  
+  function onMove(clientX, clientY){
+    if(!isDragging) return
+    hasMoved = true
   }
   
   function onEnd(clientX, clientY){
@@ -209,15 +217,28 @@ function addSwipe(cell, x, y){
     const dx = clientX - startX
     const dy = clientY - startY
     
+    // FIX: Если движения практически не было — это клик/выбор
+    if(!hasMoved || (Math.abs(dx) < 10 && Math.abs(dy) < 10)){
+      // Клик — selected уже установлен в onStart
+      return
+    }
+    
     let targetX = x
     let targetY = y
     
     if(Math.abs(dx) > Math.abs(dy)){
       if(dx > 30){ targetX = x + 1; swipeDirection = 'horizontal' }
-      if(dx < -30){ targetX = x - 1; swipeDirection = 'horizontal' }
-    }else{
+      else if(dx < -30){ targetX = x - 1; swipeDirection = 'horizontal' }
+    } else {
       if(dy > 30){ targetY = y + 1; swipeDirection = 'vertical' }
-      if(dy < -30){ targetY = y - 1; swipeDirection = 'vertical' }
+      else if(dy < -30){ targetY = y - 1; swipeDirection = 'vertical' }
+    }
+    
+    // FIX: Если свайп короткий — сбрасываем выделение
+    if(targetX === x && targetY === y){
+      clearHighlight()
+      selected = null
+      return
     }
     
     onCellClick(targetX, targetY, swipeDirection)
@@ -227,6 +248,13 @@ function addSwipe(cell, x, y){
   cell.addEventListener("touchstart", e => {
     e.preventDefault()
     onStart(e.touches[0].clientX, e.touches[0].clientY)
+  }, {passive: false})
+  
+  cell.addEventListener("touchmove", e => {
+    e.preventDefault()
+    if(e.touches.length > 0){
+      onMove(e.touches[0].clientX, e.touches[0].clientY)
+    }
   }, {passive: false})
   
   cell.addEventListener("touchend", e => {
@@ -240,18 +268,16 @@ function addSwipe(cell, x, y){
     onStart(e.clientX, e.clientY)
   })
   
+  cell.addEventListener("mousemove", e => {
+    onMove(e.clientX, e.clientY)
+  })
+  
   cell.addEventListener("mouseup", e => {
     if(e.button !== 0) return
     onEnd(e.clientX, e.clientY)
   })
   
-  cell.addEventListener("mouseleave", () => {
-    if(isDragging){
-      isDragging = false
-      clearHighlight()
-      selected = null
-    }
-  })
+  // FIX: Убран mouseleave — он мешал кликам
 }
 
 
@@ -290,6 +316,7 @@ async function onCellClick(x, y, direction = null){
   
   lastClickTime = now
   
+  // FIX: Если нет выделенной ячейки — выбираем текущую
   if(!selected){
     selected = {x, y}
     highlightCell(x, y)
@@ -299,47 +326,73 @@ async function onCellClick(x, y, direction = null){
   const dx = Math.abs(selected.x - x)
   const dy = Math.abs(selected.y - y)
   
-  if(dx + dy !== 1){
+  // FIX: Клик на ту же ячейку — сброс
+  if(dx === 0 && dy === 0){
     clearHighlight()
     selected = null
     return
   }
   
-  ComboManager.reset()
-  isAnimating = true
-  
-  const a = {x: selected.x, y: selected.y}
-  const b = {x, y}
-  
-  clearHighlight()
-  selected = null
-  
-  const A = board[a.y][a.x]
-  const B = board[b.y][b.x]
-  
-  board[a.y][a.x] = B
-  board[b.y][b.x] = A
-  
-  renderBoard()
-  await delay(200)
-  
-  let hasSpecialActivated = false
-  
-  const specialA = typeof A === "object" && A !== null && A.special
-  const specialB = typeof B === "object" && B !== null && B.special
-  
-  if(specialB){
-    await Specials.activateWithDelay(b.x, b.y, null, direction)
-    hasSpecialActivated = true
-  } else if(specialA){
-    await Specials.activateWithDelay(a.x, a.y, null, direction)
-    hasSpecialActivated = true
-  }
-  
-  if(hasSpecialActivated){
-    await dropAndSpawn(150)
+  // FIX: Клик на соседнюю ячейку — свайп
+  if(dx + dy === 1){
+    ComboManager.reset()
+    isAnimating = true
+    
+    const a = {x: selected.x, y: selected.y}
+    const b = {x, y}
+    
+    clearHighlight()
+    selected = null
+    
+    const A = board[a.y][a.x]
+    const B = board[b.y][b.x]
+    
+    board[a.y][a.x] = B
+    board[b.y][b.x] = A
+    
     renderBoard()
+    await delay(200)
+    
+    let hasSpecialActivated = false
+    
+    const specialA = typeof A === "object" && A !== null && A.special
+    const specialB = typeof B === "object" && B !== null && B.special
+    
+    if(specialB){
+      await Specials.activateWithDelay(b.x, b.y, null, direction)
+      hasSpecialActivated = true
+    } else if(specialA){
+      await Specials.activateWithDelay(a.x, a.y, null, direction)
+      hasSpecialActivated = true
+    }
+    
+    if(hasSpecialActivated){
+      await dropAndSpawn(150)
+      renderBoard()
+      await processMatchesLoop()
+      updateHUD()
+      checkWin()
+      startHintTimer()
+      isAnimating = false
+      return
+    }
+    
+    let matches = MatchDetection.getMatches(board)
+    
+    if(matches.length === 0){
+      board[a.y][a.x] = A
+      board[b.y][b.x] = B
+      renderBoard()
+      await delay(150)
+      isAnimating = false
+      return
+    }
+    
+    movesLeft--
+    updateHUD()
+    
     await processMatchesLoop()
+    
     updateHUD()
     checkWin()
     startHintTimer()
@@ -347,26 +400,10 @@ async function onCellClick(x, y, direction = null){
     return
   }
   
-  let matches = MatchDetection.getMatches(board)
-  
-  if(matches.length === 0){
-    board[a.y][a.x] = A
-    board[b.y][b.x] = B
-    renderBoard()
-    await delay(150)
-    isAnimating = false
-    return
-  }
-  
-  movesLeft--
-  updateHUD()
-  
-  await processMatchesLoop()
-  
-  updateHUD()
-  checkWin()
-  startHintTimer()
-  isAnimating = false
+  // FIX: Клик на дальнюю ячейку — переключаем выбор
+  clearHighlight()
+  selected = {x, y}
+  highlightCell(x, y)
 }
 
 
