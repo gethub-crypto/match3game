@@ -3,18 +3,18 @@ const MatchDetection = {
     const size = board.length
     const matches = []
     const mark = new Set()
+    const usedCells = new Set() // FIX: Отслеживаем использованные ячейки
     
     function key(x, y){ return x + "_" + y }
     
     function getColor(cell){
       if(!cell) return null
-      // Поддержка разных форматов
+      // FIX: Special плитки не участвуют в матчах
       if(typeof cell === "object" && cell !== null){
-        // Приоритет: color (main.js формат)
+        if(cell.special || cell.type === "special") return null
         if(cell.color) return cell.color
         return null
       }
-      // Обычная строка цвета
       if(typeof cell === "string") return cell
       return null
     }
@@ -50,7 +50,6 @@ const MatchDetection = {
             cells.push({x: i, y})
           }
           
-          // определяем тип
           let type = null
           
           if(len === 4) type = "rocket"
@@ -84,8 +83,7 @@ const MatchDetection = {
             a.findIndex(o => o.x === c.x && o.y === c.y) === i
           )
           
-          // ключ группы
-          const id = cells.map(c => key(c.x, c.y)).join("|")
+          const id = cells.map(c => key(c.x, c.y)).sort().join("|")
           
           if(!mark.has(id)){
             mark.add(id)
@@ -126,11 +124,34 @@ const MatchDetection = {
           if(len === 4) type = "rocket"
           if(len >= 5) type = "color"
           
+          // FIX: Проверка T / L для вертикальных матчей
+          cells.forEach(c => {
+            let left = 0
+            let right = 0
+            
+            for(let xx=c.x-1; xx>=0; xx--){
+              if(getColor(board[c.y][xx]) === color) left++
+              else break
+            }
+            
+            for(let xx=c.x+1; xx<size; xx++){
+              if(getColor(board[c.y][xx]) === color) right++
+              else break
+            }
+            
+            if(left + right >= 2){
+              type = "bomb"
+              
+              for(let i=1; i<=left; i++) cells.push({x: c.x - i, y: c.y})
+              for(let i=1; i<=right; i++) cells.push({x: c.x + i, y: c.y})
+            }
+          })
+          
           cells = cells.filter((c, i, a) =>
             a.findIndex(o => o.x === c.x && o.y === c.y) === i
           )
           
-          const id = cells.map(c => key(c.x, c.y)).join("|")
+          const id = cells.map(c => key(c.x, c.y)).sort().join("|")
           
           if(!mark.has(id)){
             mark.add(id)
@@ -143,6 +164,16 @@ const MatchDetection = {
       }
     }
     
-    return matches
+    // FIX: Удаляем пересекающиеся матчи (берём первый, остальные игнорируем)
+    const deduped = []
+    for(const match of matches){
+      const hasOverlap = match.cells.some(c => usedCells.has(key(c.x, c.y)))
+      if(!hasOverlap){
+        deduped.push(match)
+        match.cells.forEach(c => usedCells.add(key(c.x, c.y)))
+      }
+    }
+    
+    return deduped
   }
-              }
+            }
