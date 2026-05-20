@@ -1,21 +1,25 @@
 const Specials = {
   create(type, x, y, color = null){
+    if(board[y]?.[x] !== null){
+      console.warn(`Cell ${x},${y} is not empty, cannot create special`)
+      return false
+    }
+    
     board[y][x] = {
       color: color || randomColor(),
       special: type,
       type: "special"
     }
     renderBoard()
+    return true
   },
 
   delay(ms){
     return new Promise(resolve => setTimeout(resolve, ms))
   },
 
-  // ===== АКТИВАЦИЯ СПЕЦА С ЗАДЕРЖКОЙ =====
-  async activateWithDelay(x, y, color = null){
+  async activateWithDelay(x, y, color = null, direction = null){
     const cell = board[y]?.[x]
-    
     if(!cell) return
     
     const isSpecial = (cell.type === "special") || (cell.special !== undefined)
@@ -23,8 +27,27 @@ const Specials = {
     
     let specialType = cell.special || null
     if(!specialType && cell.type === "special") specialType = cell.special
-    
     if(!specialType) return
+    
+    const cellColor = cell.color || null
+    
+    if(specialType === "color" && !color && !cellColor){
+      let targetColor = null
+      for(let yy=0; yy<SIZE; yy++){
+        for(let xx=0; xx<SIZE; xx++){
+          const c = board[yy]?.[xx]
+          if(typeof c === "string"){ targetColor = c; break }
+          if(typeof c === "object" && c !== null && c.color){
+            targetColor = c.color; break
+          }
+        }
+        if(targetColor) break
+      }
+      if(!targetColor){
+        console.warn("Color bomb: no target color found, aborting")
+        return
+      }
+    }
     
     await this.showSpecialEffect(x, y, specialType)
     await this.delay(400)
@@ -38,14 +61,14 @@ const Specials = {
     }
     
     if(map[specialType]){
-      await map[specialType].call(this, x, y, color || cell.color)
+      await map[specialType].call(this, x, y, color || cellColor, direction)
     }
   },
   
   async showSpecialEffect(x, y, type){
     if(!cells[y] || !cells[y][x]) return
-    
     const el = cells[y][x]
+    if(!document.contains(el)) return
     
     el.classList.remove("specialRocket", "specialBomb", "specialRainbow", "matchFlash")
     void el.offsetHeight
@@ -54,15 +77,17 @@ const Specials = {
       el.classList.add("specialRocket")
       for(let i=0; i<3; i++){
         setTimeout(() => {
-          if(cells[y]?.[x]) {
-            cells[y][x].style.transform = `translate(${Math.random() * 4 - 2}px, ${Math.random() * 4 - 2}px)`
+          const currentEl = cells[y]?.[x]
+          if(currentEl && document.contains(currentEl)){
+            currentEl.style.transform = `translate(${Math.random() * 4 - 2}px, ${Math.random() * 4 - 2}px)`
           }
         }, i * 50)
       }
       setTimeout(() => {
-        if(cells[y] && cells[y][x]) {
-          cells[y][x].style.transform = ""
-          cells[y][x].classList.remove("specialRocket")
+        const currentEl = cells[y]?.[x]
+        if(currentEl && document.contains(currentEl)){
+          currentEl.style.transform = ""
+          currentEl.classList.remove("specialRocket")
         }
       }, 350)
     } 
@@ -70,9 +95,10 @@ const Specials = {
       el.classList.add("specialBomb")
       el.style.animation = "bombCharge 0.3s ease-out 3"
       setTimeout(() => {
-        if(cells[y] && cells[y][x]) {
-          cells[y][x].style.animation = ""
-          cells[y][x].classList.remove("specialBomb")
+        const currentEl = cells[y]?.[x]
+        if(currentEl && document.contains(currentEl)){
+          currentEl.style.animation = ""
+          currentEl.classList.remove("specialBomb")
         }
       }, 350)
     } 
@@ -80,9 +106,10 @@ const Specials = {
       el.classList.add("specialRainbow")
       el.style.animation = "rainbowCharge 0.4s ease-out 2"
       setTimeout(() => {
-        if(cells[y] && cells[y][x]) {
-          cells[y][x].style.animation = ""
-          cells[y][x].classList.remove("specialRainbow")
+        const currentEl = cells[y]?.[x]
+        if(currentEl && document.contains(currentEl)){
+          currentEl.style.animation = ""
+          currentEl.classList.remove("specialRainbow")
         }
       }, 400)
     }
@@ -90,13 +117,24 @@ const Specials = {
     await this.delay(200)
   },
 
-  // ===== РАКЕТА С ЗАДЕРЖКОЙ =====
-  async rocketWithDelay(x, y){
-    for(let i=0; i<SIZE; i++){
-      if(cells[y] && cells[y][i]) {
-        cells[y][i].classList.remove("rocketLine", "matchFlash")
+  async rocketWithDelay(x, y, color = null, direction = null){
+    const toClear = new Set()
+    const isHorizontal = direction !== 'vertical'
+    
+    if(isHorizontal){
+      for(let i=0; i<SIZE; i++){
+        toClear.add(`${i},${y}`)
       }
-      if(cells[i] && cells[i][x]) {
+    } else {
+      for(let i=0; i<SIZE; i++){
+        toClear.add(`${x},${i}`)
+      }
+    }
+    
+    for(let i=0; i<SIZE; i++){
+      if(isHorizontal && cells[y] && cells[y][i]){
+        cells[y][i].classList.remove("rocketLine", "matchFlash")
+      } else if(!isHorizontal && cells[i] && cells[i][x]){
         cells[i][x].classList.remove("rocketLine", "matchFlash")
       }
     }
@@ -104,13 +142,12 @@ const Specials = {
     void document.body.offsetHeight
     
     for(let i=0; i<SIZE; i++){
-      if(cells[y] && cells[y][i]){
+      if(isHorizontal && cells[y] && cells[y][i]){
         cells[y][i].classList.add("rocketLine")
         setTimeout(() => {
           if(cells[y] && cells[y][i]) cells[y][i].classList.remove("rocketLine")
         }, 400)
-      }
-      if(cells[i] && cells[i][x]){
+      } else if(!isHorizontal && cells[i] && cells[i][x]){
         cells[i][x].classList.add("rocketLine")
         setTimeout(() => {
           if(cells[i] && cells[i][x]) cells[i][x].classList.remove("rocketLine")
@@ -120,16 +157,15 @@ const Specials = {
     
     await this.delay(350)
     
-    for(let i=0; i<SIZE; i++){
-      if(board[y] && board[y][i]) board[y][i] = null
-      if(board[i] && board[i][x]) board[i][x] = null
-    }
+    toClear.forEach(key => {
+      const [cx, cy] = key.split(',').map(Number)
+      if(board[cy] && board[cy][cx] !== undefined) board[cy][cx] = null
+    })
     
     renderBoard()
     await this.delay(150)
   },
 
-  // ===== БОМБА С ЗАДЕРЖКОЙ =====
   async bombWithDelay(x, y){
     for(let yy=y-1; yy<=y+1; yy++){
       for(let xx=x-1; xx<=x+1; xx++){
@@ -160,22 +196,7 @@ const Specials = {
       }
     }
     
-    await this.delay(150)
-    
-    for(let yy=y-2; yy<=y+2; yy++){
-      for(let xx=x-2; xx<=x+2; xx++){
-        if(xx>=0 && yy>=0 && xx<SIZE && yy<SIZE && cells[yy] && cells[yy][xx]){
-          if(Math.abs(xx-x) > 1 || Math.abs(yy-y) > 1){
-            cells[yy][xx].classList.add("bombShockwave")
-            setTimeout(() => {
-              if(cells[yy] && cells[yy][xx]) cells[yy][xx].classList.remove("bombShockwave")
-            }, 300)
-          }
-        }
-      }
-    }
-    
-    await this.delay(200)
+    await this.delay(350)
     
     for(let yy=y-1; yy<=y+1; yy++){
       for(let xx=x-1; xx<=x+1; xx++){
@@ -189,7 +210,6 @@ const Specials = {
     await this.delay(150)
   },
 
-  // ===== ЦВЕТНАЯ БОМБА (РАДУГА) С ЗАДЕРЖКОЙ =====
   async colorBombWithDelay(x, y, color = null){
     let targetColor = color
     
@@ -287,8 +307,7 @@ const Specials = {
     await this.delay(150)
   },
 
-  // ===== ОРИГИНАЛЬНЫЕ МЕТОДЫ (для обратной совместимости) =====
-  activate(x, y, color = null){
+  activate(x, y, color = null, direction = null){
     const cell = board[y]?.[x]
     if(!cell) return
     
@@ -299,6 +318,7 @@ const Specials = {
     if(!specialType && cell.type === "special") specialType = cell.special
     if(!specialType) return
     
+    const cellColor = cell.color || null
     board[y][x] = null
     
     const map = {
@@ -308,15 +328,24 @@ const Specials = {
     }
     
     if(map[specialType]){
-      map[specialType].call(this, x, y, color || cell.color)
+      map[specialType].call(this, x, y, color || cellColor, direction)
     }
   },
 
-  rocket(x, y){
-    for(let i=0; i<SIZE; i++){
-      if(board[y] && board[y][i]) board[y][i] = null
-      if(board[i] && board[i][x]) board[i][x] = null
+  rocket(x, y, color = null, direction = null){
+    const toClear = new Set()
+    const isHorizontal = direction !== 'vertical'
+    
+    if(isHorizontal){
+      for(let i=0; i<SIZE; i++) toClear.add(`${i},${y}`)
+    } else {
+      for(let i=0; i<SIZE; i++) toClear.add(`${x},${i}`)
     }
+    
+    toClear.forEach(key => {
+      const [cx, cy] = key.split(',').map(Number)
+      if(board[cy] && board[cy][cx] !== undefined) board[cy][cx] = null
+    })
   },
 
   bomb(x, y){
@@ -364,4 +393,4 @@ const Specials = {
       }
     }
   }
-      }
+        }
