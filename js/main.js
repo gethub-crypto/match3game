@@ -220,14 +220,16 @@ function setColor(cell, data){
 }
 
 
-// ================= SWIPE =================
+// ================= SWIPE (TOUCH + MOUSE SUPPORT) =================
 
 function addSwipe(cell, x, y){
   let startX = 0
   let startY = 0
   
+  // === TOUCH SUPPORT (Mobile) ===
   cell.addEventListener("touchstart", e => {
-    // ✨ ANTI-SPAM: Защита срабатывает первой, до всех проверок
+    e.preventDefault()
+    
     const now = Date.now()
     if(now - lastClickTime < CLICK_COOLDOWN) return
     
@@ -242,7 +244,6 @@ function addSwipe(cell, x, y){
   })
   
   cell.addEventListener("touchend", e => {
-    // ✨ ANTI-SPAM: Защита на touchend для предотвращения двойных свайпов
     const now = Date.now()
     if(now - lastClickTime < CLICK_COOLDOWN) return
     
@@ -267,6 +268,52 @@ function addSwipe(cell, x, y){
     
     onCellClick(targetX, targetY)
   })
+  
+  // === MOUSE SUPPORT (Desktop Web) ===
+  cell.addEventListener("mousedown", e => {
+    e.preventDefault()
+    
+    const now = Date.now()
+    if(now - lastClickTime < CLICK_COOLDOWN) return
+    
+    if(gameLocked || isAnimating || isProcessingSpecial) return
+    
+    lastClickTime = now
+    
+    startX = e.clientX
+    startY = e.clientY
+    selected = {x, y}
+    highlightCell(x, y)
+  })
+  
+  cell.addEventListener("mouseup", e => {
+    const now = Date.now()
+    if(now - lastClickTime < CLICK_COOLDOWN) return
+    
+    if(gameLocked || isAnimating || isProcessingSpecial) return
+    
+    const endX = e.clientX
+    const endY = e.clientY
+    
+    const dx = endX - startX
+    const dy = endY - startY
+    
+    let targetX = x
+    let targetY = y
+    
+    if(Math.abs(dx) > Math.abs(dy)){
+      if(dx > 20) targetX = x + 1
+      if(dx < -20) targetX = x - 1
+    }else{
+      if(dy > 20) targetY = y + 1
+      if(dy < -20) targetY = y - 1
+    }
+    
+    onCellClick(targetX, targetY)
+  })
+  
+  // Предотвращаем выделение текста при драге
+  cell.addEventListener("dragstart", e => e.preventDefault())
 }
 
 
@@ -893,6 +940,7 @@ function loseLevel(){
 
 
 // ================= LEVEL NAVIGATION =================
+
 function nextLevel(){
   currentLevel++
   hidePopup()
@@ -935,6 +983,3 @@ function animateCoins(){
     setTimeout(() => coin.remove(), 900)
   }
 }
-    
-
-    
