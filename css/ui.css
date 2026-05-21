@@ -342,3 +342,26 @@ z-index:10000;
   0% { transform: scale(1); filter: hue-rotate(0deg); }
   100% { transform: scale(1.8); filter: hue-rotate(360deg); opacity: 0; }
       }
+
+
+/* Предотвращаем выделение текста на доске */
+#board {
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+}
+
+.cell {
+  cursor: pointer; /* Показываем, что ячейки кликабельны */
+  transition: transform 0.1s;
+}
+
+.cell:hover {
+  transform: scale(1.05); /* Легкий эффект при наведении */
+  box-shadow: 0 0 10px rgba(255,255,255,0.3);
+}
+
+.cell:active {
+  transform: scale(0.95); /* Эффект нажатия */
+}
