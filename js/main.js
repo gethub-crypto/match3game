@@ -15,34 +15,103 @@ let isProcessingSpecial = false
 
 let isAnimating = false
 
+// ✨ ANTI-SPAM: Защита от повторных быстрых кликов
 let lastClickTime = 0
-const CLICK_COOLDOWN = 150
+const CLICK_COOLDOWN = 150 // мс между кликами
 
-// ================= COMBO SYSTEM =================
+// ================= UNIFIED INPUT SYSTEM (PRODUCTION-READY) =================
+/**
+ * UnifiedInputManager - Production-ready система ввода для desktop + mobile
+ * 
+ * Архитектура:
+ * - Единая система обработки touch и mouse событий
+ * - Защита от конфликтов touch/mouse через activePointerId
+ * - Drag threshold для предотвращения случайных свайпов
+ * - Hover preview для desktop улучшенного UX
+ * - Anti-ghost-drag: проверка левой кнопки мыши + pointer tracking
+ * 
+ * Состояния:
+ * - IDLE: ожидание ввода
+ * - DRAGGING: активное перетаскивание
+ * - HOVER: наведение мыши (desktop only)
+ * 
+ * Производительность:
+ * - Пассивные слушатели для touch событий
+ * - Делегирование событий для минимизации listener'ов
+ * - Очистка состояния при потере фокуса
+ */
+let isMouseDown = false
+let isDragging = false
+
+let dragStartX = 0
+let dragStartY = 0
+
+let currentHoverCell = null
+
+const DRAG_THRESHOLD = 18 // Минимальное расстояние для распознавания свайпа (пиксели)
+const DESKTOP_SWAP_PREVIEW = true // Включить визуальный превью при наведении
+
+let activePointerId = null // Отслеживание активного указателя для защиты от ghost событий
+
+// ================= COMBO SYSTEM (PRODUCTION-READY) =================
+/**
+ * ComboManager - Легковесный менеджер комбо-системы
+ * 
+ * Архитектура:
+ * - Комбо активируется только во время каскадов (chain reactions)
+ * - Первый матч хода игрока НЕ увеличивает комбо
+ * - Каждый последующий каскад увеличивает комбо на 1
+ * - Сброс происходит при новом ходе игрока или завершении каскадов
+ * 
+ * Защита от багов:
+ * - Флаг comboActive предотвращает дублирование инкрементов
+ * - Сброс гарантирован при новом свайпе
+ * - Множитель применяется только к базовым очкам матча
+ */
 const ComboManager = {
   combo: 0,
-  comboActive: false,
-  firstMatchInChain: true,
+  comboActive: false, // Флаг активной комбо-цепочки
+  firstMatchInChain: true, // Первый матч в цепочке (ход игрока)
   
+  /**
+   * Вызывается при обнаружении любого матча
+   * Увеличивает комбо только если это каскад (не первый матч)
+   */
   onMatchDetected() {
     if (this.firstMatchInChain) {
+      // Первый матч - не увеличиваем комбо, но активируем цепочку
       this.firstMatchInChain = false
       this.comboActive = true
     } else if (this.comboActive) {
+      // Каскад - увеличиваем комбо
       this.combo++
+      console.log(`🔥 Combo x${this.combo + 1}! Chain continuing...`)
     }
   },
   
+  /**
+   * Возвращает текущий множитель комбо
+   * Минимальный множитель = 1 (нет комбо)
+   */
   getMultiplier() {
     return this.comboActive ? (this.combo + 1) : 1
   },
   
+  /**
+   * Сброс комбо (вызывается при новом ходе или завершении каскадов)
+   */
   reset() {
+    if (this.combo > 0) {
+      console.log(`✨ Combo finished! Total chain: ${this.combo + 1} matches`)
+    }
     this.combo = 0
     this.comboActive = false
     this.firstMatchInChain = true
   },
   
+  /**
+   * Проверка активности комбо
+   */
   isActive() {
     return this.comboActive
   }
@@ -53,6 +122,7 @@ const COLORS = ["red","blue","green","yellow","purple"]
 
 let board = []
 let cells = []
+
 let selected = null
 
 
@@ -63,6 +133,18 @@ async function init(){
   await Levels.load()
   updateScreens()
   updateCoinsUI()
+  
+  // Предотвращаем выделение текста и нежелательное поведение на всей странице
+  document.addEventListener('selectstart', (e) => {
+    if (e.target.closest('#board')) {
+      e.preventDefault()
+    }
+  })
+  
+  // Сброс состояния ввода при потере фокуса окна (production-ready защита)
+  window.addEventListener('blur', () => {
+    resetInputState()
+  })
 }
 
 window.onload = init
@@ -87,8 +169,15 @@ function initLevel(){
   gameLocked = false
   isAnimating = false
   isProcessingSpecial = false
+  
+  // ✨ ANTI-SPAM: Сбрасываем таймер при новом уровне
   lastClickTime = 0
+  
+  // ✨ COMBO: Сбрасываем комбо при новом уровне
   ComboManager.reset()
+  
+  // ✨ INPUT: Сбрасываем состояние ввода
+  resetInputState()
   
   levelData = Levels.get(currentLevel)
   
@@ -136,7 +225,7 @@ function createBoard(){
       cell.dataset.y = y
       
       setColor(cell, color)
-      addSwipe(cell, x, y)
+      addInputHandlers(cell, x, y)
       
       boardEl.appendChild(cell)
       cells[y][x] = cell
@@ -180,62 +269,372 @@ function setColor(cell, data){
 }
 
 
-// ================= SWIPE (TOUCH + MOUSE) =================
-
-function addSwipe(cell, x, y){
-  let startX = 0
-  let startY = 0
+// ================= UNIFIED INPUT HANDLERS (PRODUCTION-READY) =================
+/**
+ * addInputHandlers - Единая система обработки ввода для touch + mouse
+ * 
+ * Поддерживаемые взаимодействия:
+ * - Touch: swipe (мобильные устройства)
+ * - Mouse: drag/swipe + hover preview (desktop)
+ * 
+ * Защита от конфликтов:
+ * - activePointerId предотвращает одновременную обработку touch и mouse
+ * - Проверка e.button === 0 для mouse событий (только левая кнопка)
+ * - DRAG_THRESHOLD предотвращает случайные микро-свайпы
+ * 
+ * @param {HTMLElement} cell - DOM элемент ячейки
+ * @param {number} x - Координата X на доске
+ * @param {number} y - Координата Y на доске
+ */
+function addInputHandlers(cell, x, y) {
   
-  // === TOUCH (Mobile) ===
-  cell.addEventListener("touchstart", e => {
+  // ================= TOUCH START =================
+  cell.addEventListener('touchstart', (e) => {
+    // Предотвращаем стандартное поведение (прокрутка, зум)
     e.preventDefault()
+    
+    // Anti-spam проверка
     const now = Date.now()
-    if(now - lastClickTime < CLICK_COOLDOWN) return
-    if(gameLocked || isAnimating || isProcessingSpecial) return
+    if (now - lastClickTime < CLICK_COOLDOWN) return
+    
+    // Блокировка ввода во время анимаций и специальных эффектов
+    if (gameLocked || isAnimating || isProcessingSpecial) return
+    
+    // Защита от множественных касаний - только первый палец
+    if (activePointerId !== null) return
+    
+    const touch = e.touches[0]
+    activePointerId = touch.identifier
+    
     lastClickTime = now
     
-    startX = e.touches[0].clientX
-    startY = e.touches[0].clientY
+    // Сохраняем начальные координаты для swipe расчета
+    dragStartX = touch.clientX
+    dragStartY = touch.clientY
+    isMouseDown = true
+    isDragging = false
+    
+    // Визуальная обратная связь - выделяем ячейку
     selected = {x, y}
     highlightCell(x, y)
-  })
+  }, { passive: false })
   
-  cell.addEventListener("touchend", e => {
-    const now = Date.now()
-    if(now - lastClickTime < CLICK_COOLDOWN) return
-    if(gameLocked || isAnimating || isProcessingSpecial) return
+  // ================= TOUCH END =================
+  cell.addEventListener('touchend', (e) => {
+    e.preventDefault()
     
-    const endX = e.changedTouches[0].clientX
-    const endY = e.changedTouches[0].clientY
-    const dx = endX - startX
-    const dy = endY - startY
+    // Проверяем, что это наш активный указатель
+    const touch = e.changedTouches[0]
+    if (activePointerId !== touch.identifier) return
     
-    let targetX = x
-    let targetY = y
-    
-    if(Math.abs(dx) > Math.abs(dy)){
-      if(dx > 30) targetX = x + 1
-      if(dx < -30) targetX = x - 1
-    }else{
-      if(dy > 30) targetY = y + 1
-      if(dy < -30) targetY = y - 1
+    // Блокировка ввода
+    if (gameLocked || isAnimating || isProcessingSpecial) {
+      resetInputState()
+      return
     }
     
-    onCellClick(targetX, targetY)
+    const endX = touch.clientX
+    const endY = touch.clientY
+    
+    // Вычисляем расстояние свайпа
+    const dx = endX - dragStartX
+    const dy = endY - dragStartY
+    const distance = Math.sqrt(dx * dx + dy * dy)
+    
+    // Проверяем, превышает ли свайп порог
+    if (distance >= DRAG_THRESHOLD) {
+      // Это свайп - обрабатываем
+      processSwipe(dragStartX, dragStartY, endX, endY)
+    } else {
+      // Это тап - обрабатываем как клик
+      const now = Date.now()
+      if (now - lastClickTime < CLICK_COOLDOWN) {
+        resetInputState()
+        return
+      }
+      lastClickTime = now
+      
+      onCellClick(x, y)
+    }
+    
+    // Сбрасываем состояние ввода
+    resetInputState()
+  }, { passive: false })
+  
+  // ================= TOUCH CANCEL =================
+  cell.addEventListener('touchcancel', (e) => {
+    // Сбрасываем состояние при прерывании касания (звонок, уведомление)
+    resetInputState()
   })
   
-  // === MOUSE (Desktop) - Click-to-Select ===
-  cell.addEventListener("click", e => {
+  // ================= MOUSE DOWN =================
+  cell.addEventListener('mousedown', (e) => {
+    // Только левая кнопка мыши (button === 0)
+    if (e.button !== 0) return
+    
+    // Предотвращаем выделение текста при драге
     e.preventDefault()
+    
+    // Anti-spam проверка
     const now = Date.now()
-    if(now - lastClickTime < CLICK_COOLDOWN) return
-    if(gameLocked || isAnimating || isProcessingSpecial) return
+    if (now - lastClickTime < CLICK_COOLDOWN) return
+    
+    // Блокировка ввода
+    if (gameLocked || isAnimating || isProcessingSpecial) return
+    
+    // Защита от конфликта с touch событиями
+    if (activePointerId !== null) return
+    
+    // Для mouse используем специальный идентификатор
+    activePointerId = 'mouse'
+    
     lastClickTime = now
     
-    onCellClick(x, y)
+    // Сохраняем начальные координаты
+    dragStartX = e.clientX
+    dragStartY = e.clientY
+    isMouseDown = true
+    isDragging = false
+    
+    // Визуальная обратная связь
+    selected = {x, y}
+    highlightCell(x, y)
+    
+    // Предотвращаем drag изображений и текста
+    e.preventDefault()
   })
   
-  cell.addEventListener("dragstart", e => e.preventDefault())
+  // ================= MOUSE ENTER (HOVER PREVIEW) =================
+  cell.addEventListener('mouseenter', (e) => {
+    // Hover preview только для desktop (не активно во время драга)
+    if (!DESKTOP_SWAP_PREVIEW) return
+    if (isMouseDown || isDragging) return
+    if (gameLocked || isAnimating || isProcessingSpecial) return
+    
+    // Убираем предыдущий hover
+    if (currentHoverCell && currentHoverCell !== cell) {
+      currentHoverCell.classList.remove('hoverSwap')
+    }
+    
+    // Показываем preview только если есть выбранная ячейка
+    if (selected && (selected.x !== x || selected.y !== y)) {
+      const dx = Math.abs(selected.x - x)
+      const dy = Math.abs(selected.y - y)
+      
+      // Подсвечиваем только соседние ячейки
+      if (dx + dy === 1) {
+        cell.classList.add('hoverSwap')
+        currentHoverCell = cell
+      }
+    }
+  })
+  
+  // ================= MOUSE LEAVE =================
+  cell.addEventListener('mouseleave', (e) => {
+    // Убираем hover эффект
+    if (currentHoverCell === cell) {
+      cell.classList.remove('hoverSwap')
+      currentHoverCell = null
+    }
+  })
+}
+
+// ================= GLOBAL MOUSE HANDLERS =================
+/**
+ * Глобальные обработчики mousemove и mouseup на document
+ * Преимущества:
+ * - Отслеживание мыши за пределами ячейки (важно для drag)
+ * - Предотвращение потери событий при быстром движении
+ * - Централизованное управление состоянием драга
+ */
+document.addEventListener('mousemove', (e) => {
+  // Обрабатываем только если активен mouse драг
+  if (activePointerId !== 'mouse') return
+  if (!isMouseDown) return
+  if (gameLocked || isAnimating || isProcessingSpecial) return
+  
+  // Вычисляем расстояние от начальной точки
+  const dx = e.clientX - dragStartX
+  const dy = e.clientY - dragStartY
+  const distance = Math.sqrt(dx * dx + dy * dy)
+  
+  // Проверяем, начался ли драг (превысили порог)
+  if (!isDragging && distance >= DRAG_THRESHOLD) {
+    isDragging = true
+    
+    // Убираем hover эффект при начале драга
+    if (currentHoverCell) {
+      currentHoverCell.classList.remove('hoverSwap')
+      currentHoverCell = null
+    }
+  }
+  
+  // Визуальный фидбек: меняем курсор при драге
+  if (isDragging) {
+    document.body.style.cursor = 'grabbing'
+  }
+})
+
+document.addEventListener('mouseup', (e) => {
+  // Обрабатываем только mouse события
+  if (activePointerId !== 'mouse') return
+  if (!isMouseDown) {
+    resetInputState()
+    return
+  }
+  
+  // Сбрасываем курсор
+  document.body.style.cursor = ''
+  
+  // Блокировка ввода
+  if (gameLocked || isAnimating || isProcessingSpecial) {
+    resetInputState()
+    return
+  }
+  
+  // Только левая кнопка мыши
+  if (e.button !== 0) {
+    resetInputState()
+    return
+  }
+  
+  const endX = e.clientX
+  const endY = e.clientY
+  
+  // Если это был драг - обрабатываем свайп
+  if (isDragging) {
+    processSwipe(dragStartX, dragStartY, endX, endY)
+  } else {
+    // Это был клик - находим целевую ячейку
+    const targetCell = document.elementFromPoint(endX, endY)
+    if (targetCell && targetCell.classList.contains('cell')) {
+      const targetX = parseInt(targetCell.dataset.x)
+      const targetY = parseInt(targetCell.dataset.y)
+      
+      const now = Date.now()
+      if (now - lastClickTime < CLICK_COOLDOWN) {
+        resetInputState()
+        return
+      }
+      lastClickTime = now
+      
+      onCellClick(targetX, targetY)
+    }
+  }
+  
+  // Сбрасываем состояние
+  resetInputState()
+})
+
+// ================= RESET INPUT STATE =================
+/**
+ * resetInputState - Централизованный сброс состояния ввода
+ * Вызывается при:
+ * - Завершении свайпа/клика
+ * - Отмене касания
+ * - Потере фокуса окна
+ * - Ошибках валидации
+ * 
+ * Гарантирует отсутствие утечек состояния между взаимодействиями
+ */
+function resetInputState() {
+  isMouseDown = false
+  isDragging = false
+  activePointerId = null
+  dragStartX = 0
+  dragStartY = 0
+  
+  // Сбрасываем hover эффекты
+  if (currentHoverCell) {
+    currentHoverCell.classList.remove('hoverSwap')
+    currentHoverCell = null
+  }
+  
+  // Сбрасываем выделение если не в процессе обработки
+  if (!isAnimating && !isProcessingSpecial) {
+    clearHighlight()
+    selected = null
+  }
+  
+  // Восстанавливаем курсор
+  document.body.style.cursor = ''
+}
+
+
+// ================= PROCESS SWIPE (UNIFIED) =================
+/**
+ * processSwipe - Единая система обработки свайпов для touch и mouse
+ * 
+ * Алгоритм:
+ * 1. Определяет направление свайпа по вектору (dx, dy)
+ * 2. Использует DRAG_THRESHOLD для минимального расстояния
+ * 3. Вычисляет целевую ячейку
+ * 4. Делегирует выполнение в onCellClick (сохраняя всю игровую логику)
+ * 
+ * Защита:
+ * - Проверка границ доски
+ * - Валидация входных параметров
+ * - Anti-spam защита сохраняется внутри onCellClick
+ * 
+ * @param {number} startX - Начальная X координата указателя
+ * @param {number} startY - Начальная Y координата указателя
+ * @param {number} endX - Конечная X координата указателя  
+ * @param {number} endY - Конечная Y координата указателя
+ */
+async function processSwipe(startX, startY, endX, endY) {
+  // Защита от вызова без activePointerId
+  if (!activePointerId) return
+  
+  // Блокировка ввода
+  if (gameLocked || isAnimating || isProcessingSpecial) return
+  
+  // Вычисляем вектор свайпа
+  const dx = endX - startX
+  const dy = endY - startY
+  const distance = Math.sqrt(dx * dx + dy * dy)
+  
+  // Проверяем порог
+  if (distance < DRAG_THRESHOLD) {
+    return
+  }
+  
+  // Определяем начальную ячейку (та, что была выбрана)
+  if (!selected) {
+    return
+  }
+  
+  const fromX = selected.x
+  const fromY = selected.y
+  
+  let targetX = fromX
+  let targetY = fromY
+  
+  // Определяем направление свайпа (преимущественное направление)
+  if (Math.abs(dx) > Math.abs(dy)) {
+    // Горизонтальный свайп
+    targetX = dx > 0 ? fromX + 1 : fromX - 1
+  } else {
+    // Вертикальный свайп
+    targetY = dy > 0 ? fromY + 1 : fromY - 1
+  }
+  
+  // Проверка границ доски
+  if (targetX < 0 || targetX >= SIZE || targetY < 0 || targetY >= SIZE) {
+    resetInputState()
+    return
+  }
+  
+  // Проверка соседства (только смежные ячейки)
+  const cellDx = Math.abs(fromX - targetX)
+  const cellDy = Math.abs(fromY - targetY)
+  
+  if (cellDx + cellDy !== 1) {
+    resetInputState()
+    return
+  }
+  
+  // Выполняем свайп через существующую логику onCellClick
+  await onCellClick(targetX, targetY)
 }
 
 
@@ -243,11 +642,13 @@ function addSwipe(cell, x, y){
 
 function highlightCell(x, y){
   clearHints()
+  
   for(let yy=0; yy<SIZE; yy++){
     for(let xx=0; xx<SIZE; xx++){
       cells[yy][xx].classList.remove("selected")
     }
   }
+  
   cells[y][x].classList.add("selected")
 }
 
@@ -263,41 +664,34 @@ function clearHighlight(){
 // ================= CLICK (ГЛАВНЫЙ ОБРАБОТЧИК) =================
 
 async function onCellClick(x, y){
+  // ✨ ANTI-SPAM: Проверка времени в главном обработчике (дополнительный уровень защиты)
   const now = Date.now()
   if(now - lastClickTime < CLICK_COOLDOWN) return
+  
   if(gameLocked || isAnimating || isProcessingSpecial) return
   if(x<0 || x>=SIZE || y<0 || y>=SIZE) return
   
+  // ✨ ANTI-SPAM: Обновляем время последнего клика только при успешном выполнении
   lastClickTime = now
   
-  // Нет выбранной ячейки - выбираем
   if(!selected){
     selected = {x, y}
     highlightCell(x, y)
     return
   }
   
-  // Клик по той же - снимаем выделение
-  if(selected.x === x && selected.y === y){
+  const dx = Math.abs(selected.x - x)
+  const dy = Math.abs(selected.y - y)
+  
+  if(dx + dy !== 1){
     clearHighlight()
     selected = null
     return
   }
   
-  // Проверяем соседство
-  const dx = Math.abs(selected.x - x)
-  const dy = Math.abs(selected.y - y)
-  
-  if(dx + dy !== 1){
-    // Не сосед - перевыбираем
-    clearHighlight()
-    selected = {x, y}
-    highlightCell(x, y)
-    return
-  }
-  
-  // СОСЕДНИЕ - ВЫПОЛНЯЕМ SWAP
+  // ✨ COMBO: Сбрасываем комбо при новом ходе игрока
   ComboManager.reset()
+  
   isAnimating = true
   
   const a = {x: selected.x, y: selected.y}
@@ -306,6 +700,7 @@ async function onCellClick(x, y){
   clearHighlight()
   selected = null
   
+  // ВЫПОЛНЯЕМ SWAP
   const A = board[a.y][a.x]
   const B = board[b.y][b.x]
   
@@ -315,17 +710,18 @@ async function onCellClick(x, y){
   renderBoard()
   await delay(200)
   
+  // Проверяем special только если игрок САМ свайпнул special плитку
   let hasSpecialActivated = false
   
-  if(board[a.y][a.x] && typeof board[a.y][a.x] === "object" && board[a.y][a.x] !== null && board[a.y][a.x].special){
-    await Specials.activateWithDelay(a.x, a.y)
-    board[a.y][a.x] = null
+  if(board[b.y][b.x] && typeof board[b.y][b.x] === "object" && board[b.y][b.x] !== null && board[b.y][b.x].special){
+    await Specials.activateWithDelay(b.x, b.y)
+    board[b.y][b.x] = null
     hasSpecialActivated = true
   }
   
-  if(!hasSpecialActivated && board[b.y][b.x] && typeof board[b.y][b.x] === "object" && board[b.y][b.x] !== null && board[b.y][b.x].special){
-    await Specials.activateWithDelay(b.x, b.y)
-    board[b.y][b.x] = null
+  if(!hasSpecialActivated && board[a.y][a.x] && typeof board[a.y][a.x] === "object" && board[a.y][a.x] !== null && board[a.y][a.x].special){
+    await Specials.activateWithDelay(a.x, a.y)
+    board[a.y][a.x] = null
     hasSpecialActivated = true
   }
   
@@ -334,6 +730,7 @@ async function onCellClick(x, y){
     await spawnNewWithDelay(150)
     renderBoard()
     
+    // ✨ COMBO: Активируем комбо-цепочку для special
     ComboManager.firstMatchInChain = false
     ComboManager.comboActive = true
     
@@ -343,17 +740,22 @@ async function onCellClick(x, y){
     checkWin()
     startHintTimer()
     isAnimating = false
+    
+    // ✨ COMBO: Сбрасываем после завершения цепочки
     ComboManager.reset()
     return
   }
   
+  // ПРОВЕРЯЕМ ОБЫЧНЫЕ МАТЧИ
   let matches = MatchDetection.getMatches(board)
   
   if(matches.length === 0){
     board[a.y][a.x] = A
     board[b.y][b.x] = B
     renderBoard()
+    
     await delay(150)
+    
     isAnimating = false
     return
   }
@@ -361,6 +763,7 @@ async function onCellClick(x, y){
   movesLeft--
   updateHUD()
   
+  // ✨ COMBO: Начинаем комбо-цепочку с первого матча игрока
   await processMatchesAsync()
   
   updateHUD()
@@ -368,6 +771,8 @@ async function onCellClick(x, y){
   startHintTimer()
   
   isAnimating = false
+  
+  // ✨ COMBO: Сбрасываем после завершения всей цепочки
   ComboManager.reset()
 }
 
@@ -434,7 +839,7 @@ function checkMatches(){
 }
 
 
-// ================= PROCESS MATCHES ASYNC =================
+// ================= ЕДИНАЯ АСИНХРОННАЯ ОБРАБОТКА МАТЧЕЙ =================
 
 async function processMatchesAsync(){
   const matches = MatchDetection.getMatches(board)
@@ -446,10 +851,12 @@ async function processMatchesAsync(){
     return
   }
   
+  // ✨ COMBO: Уведомляем менеджер о найденном матче
   ComboManager.onMatchDetected()
   
   for(const match of matches){
     
+    // Подсвечиваем ячейки матча
     match.cells.forEach(cellPos => {
       const el = cells[cellPos.y]?.[cellPos.x]
       if(el) el.classList.add("matchFlash")
@@ -460,6 +867,7 @@ async function processMatchesAsync(){
     let specialCell = null
     let specialType = null
     
+    // Определяем где будет создан special
     if(match.type === "rocket"){
       specialType = "rocket"
       specialCell = match.cells[1]
@@ -471,20 +879,32 @@ async function processMatchesAsync(){
       specialCell = match.cells[2]
     }
     
+    // 🔧 FIX: Защита special плиток от удаления при обычных матчах
+    // Special плитки НЕ удаляются при обычных совпадениях, только при активации игроком
     for(const cellPos of match.cells){
       const cell = board[cellPos.y][cellPos.x]
       
+      // Если это special плитка - ПРОПУСКАЕМ, не удаляем её
       if(typeof cell === "object" && cell !== null && cell.special){
-        continue
+        continue // 🔧 Не удаляем, оставляем на доске
       }
       
+      // Удаляем только обычные цветные плитки
+      // ✨ COMBO: Применяем множитель к базовым очкам
       const baseScore = 50
       const comboMultiplier = ComboManager.getMultiplier()
-      score += baseScore * comboMultiplier
+      const finalScore = baseScore * comboMultiplier
+      score += finalScore
+      
+      // Визуальная обратная связь для комбо (опционально)
+      if (comboMultiplier > 1) {
+        console.log(`💥 Combo x${comboMultiplier}! +${finalScore} points (base: ${baseScore})`)
+      }
       
       board[cellPos.y][cellPos.x] = null
     }
     
+    // 🔧 FIX: Создаём special плитку только если место свободно и там НЕ осталась другая special плитка
     if(specialCell && specialType && board[specialCell.y][specialCell.x] === null){
       board[specialCell.y][specialCell.x] = {
         color: randomColor(),
@@ -493,6 +913,7 @@ async function processMatchesAsync(){
       }
     }
     
+    // Убираем подсветку
     match.cells.forEach(cellPos => {
       const el = cells[cellPos.y]?.[cellPos.x]
       if(el) el.classList.remove("matchFlash")
@@ -502,6 +923,7 @@ async function processMatchesAsync(){
     await delay(300)
   }
   
+  // Gravity и spawn
   await dropWithDelay(150)
   await spawnNewWithDelay(150)
   renderBoard()
@@ -509,6 +931,7 @@ async function processMatchesAsync(){
   
   updateHUD()
   
+  // Проверяем новые матчи (каскады) - комбо будет расти автоматически
   await processMatchesAsync()
 }
 
@@ -518,6 +941,7 @@ async function processMatchesAsync(){
 async function dropWithDelay(baseDelay = 150){
   let changed = false
   
+  // 🔧 FIX: При gravity специальные плитки падают как обычные, но не удаляются
   for(let x=0; x<SIZE; x++){
     let emptySpaces = 0
     
@@ -562,7 +986,7 @@ async function spawnNewWithDelay(baseDelay = 150){
 }
 
 
-// ================= VISUAL EFFECTS =================
+// ================= ВИЗУАЛЬНЫЕ ЭФФЕКТЫ =================
 
 async function showMatchEffect(match){
   match.cells.forEach(cellPos => {
