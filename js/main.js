@@ -373,34 +373,37 @@ async function onCellClick(x, y){
   
   isAnimating = true
   
-  const a = {x: selected.x, y: selected.y}
-  const b = {x, y}
+  const a = {x: selected.x, y: selected.y}  // Первая выбранная плитка
+  const b = {x, y}                            // Вторая выбранная плитка
   
   clearHighlight()
   selected = null
   
   // ВЫПОЛНЯЕМ SWAP
-  const A = board[a.y][a.x]
-  const B = board[b.y][b.x]
+  const A = board[a.y][a.x]  // Сохраняем, что было на позиции A
+  const B = board[b.y][b.x]  // Сохраняем, что было на позиции B
   
+  // Меняем местами
   board[a.y][a.x] = B
   board[b.y][b.x] = A
   
   renderBoard()
   await delay(200)
   
-  // Проверяем special только если игрок САМ свайпнул special плитку
+  // 🔧 FIX: Проверяем special плитки на ОБЕИХ позициях ПОСЛЕ свапа
   let hasSpecialActivated = false
   
-  if(board[b.y][b.x] && typeof board[b.y][b.x] === "object" && board[b.y][b.x] !== null && board[b.y][b.x].special){
-    await Specials.activateWithDelay(b.x, b.y)
-    board[b.y][b.x] = null
+  // Проверяем, есть ли special на позиции A (там теперь B)
+  if(board[a.y][a.x] && typeof board[a.y][a.x] === "object" && board[a.y][a.x] !== null && board[a.y][a.x].special){
+    await Specials.activateWithDelay(a.x, a.y)
+    board[a.y][a.x] = null
     hasSpecialActivated = true
   }
   
-  if(!hasSpecialActivated && board[a.y][a.x] && typeof board[a.y][a.x] === "object" && board[a.y][a.x] !== null && board[a.y][a.x].special){
-    await Specials.activateWithDelay(a.x, a.y)
-    board[a.y][a.x] = null
+  // Проверяем, есть ли special на позиции B (там теперь A)
+  if(!hasSpecialActivated && board[b.y][b.x] && typeof board[b.y][b.x] === "object" && board[b.y][b.x] !== null && board[b.y][b.x].special){
+    await Specials.activateWithDelay(b.x, b.y)
+    board[b.y][b.x] = null
     hasSpecialActivated = true
   }
   
@@ -429,6 +432,7 @@ async function onCellClick(x, y){
   let matches = MatchDetection.getMatches(board)
   
   if(matches.length === 0){
+    // Откатываем свап обратно
     board[a.y][a.x] = A
     board[b.y][b.x] = B
     renderBoard()
