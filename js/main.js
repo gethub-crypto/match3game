@@ -19,40 +19,6 @@ let isAnimating = false
 let lastClickTime = 0
 const CLICK_COOLDOWN = 150 // мс между кликами
 
-// ================= UNIFIED INPUT SYSTEM (PRODUCTION-READY) =================
-/**
- * UnifiedInputManager - Production-ready система ввода для desktop + mobile
- * 
- * Архитектура:
- * - Единая система обработки touch и mouse событий
- * - Защита от конфликтов touch/mouse через activePointerId
- * - Drag threshold для предотвращения случайных свайпов
- * - Hover preview для desktop улучшенного UX
- * - Anti-ghost-drag: проверка левой кнопки мыши + pointer tracking
- * 
- * Состояния:
- * - IDLE: ожидание ввода
- * - DRAGGING: активное перетаскивание
- * - HOVER: наведение мыши (desktop only)
- * 
- * Производительность:
- * - Пассивные слушатели для touch событий
- * - Делегирование событий для минимизации listener'ов
- * - Очистка состояния при потере фокуса
- */
-let isMouseDown = false
-let isDragging = false
-
-let dragStartX = 0
-let dragStartY = 0
-
-let currentHoverCell = null
-
-const DRAG_THRESHOLD = 18 // Минимальное расстояние для распознавания свайпа (пиксели)
-const DESKTOP_SWAP_PREVIEW = true // Включить визуальный превью при наведении
-
-let activePointerId = null // Отслеживание активного указателя для защиты от ghost событий
-
 // ================= COMBO SYSTEM (PRODUCTION-READY) =================
 /**
  * ComboManager - Легковесный менеджер комбо-системы
@@ -125,26 +91,70 @@ let cells = []
 
 let selected = null
 
+// ================= CROSS-PLATFORM INPUT MANAGER =================
+/**
+ * InputManager - Универсальный обработчик ввода для всех платформ
+ * 
+ * Поддерживает:
+ * - Мышь (desktop)
+ * - Тач (mobile/tablet)
+ * - Стилус (планшеты с пером)
+ * - Предотвращает конфликты между разными типами ввода
+ */
+const InputManager = {
+  isDragging: false,
+  dragStartX: 0,
+  dragStartY: 0,
+  dragStartCell: null,
+  currentCell: null,
+  isTouchDevice: false,
+  
+  init() {
+    // Определяем тип устройства
+    this.isTouchDevice = ('ontouchstart' in window) || 
+                        (navigator.maxTouchPoints > 0) || 
+                        (navigator.msMaxTouchPoints > 0);
+    
+    console.log(`📱 Device type: ${this.isTouchDevice ? 'Touch' : 'Mouse'}`);
+  },
+  
+  getPosition(e) {
+    // Универсальное получение координат из разных типов событий
+    if (e.touches && e.touches.length > 0) {
+      return { x: e.touches[0].clientX, y: e.touches[0].clientY };
+    }
+    if (e.changedTouches && e.changedTouches.length > 0) {
+      return { x: e.changedTouches[0].clientX, y: e.changedTouches[0].clientY };
+    }
+    return { x: e.clientX, y: e.clientY };
+  },
+  
+  getCellFromEvent(e) {
+    const element = document.elementFromPoint(
+      this.getPosition(e).x, 
+      this.getPosition(e).y
+    );
+    return element?.closest('.cell');
+  },
+  
+  reset() {
+    this.isDragging = false;
+    this.dragStartCell = null;
+    this.currentCell = null;
+  }
+};
 
 // ================= INIT =================
 
 async function init(){
+  InputManager.init();
   LivesSystem.init()
   await Levels.load()
   updateScreens()
   updateCoinsUI()
   
-  // Предотвращаем выделение текста и нежелательное поведение на всей странице
-  document.addEventListener('selectstart', (e) => {
-    if (e.target.closest('#board')) {
-      e.preventDefault()
-    }
-  })
-  
-  // Сброс состояния ввода при потере фокуса окна (production-ready защита)
-  window.addEventListener('blur', () => {
-    resetInputState()
-  })
+  // Добавляем глобальные обработчики для мыши
+  setupGlobalMouseHandlers();
 }
 
 window.onload = init
@@ -176,8 +186,8 @@ function initLevel(){
   // ✨ COMBO: Сбрасываем комбо при новом уровне
   ComboManager.reset()
   
-  // ✨ INPUT: Сбрасываем состояние ввода
-  resetInputState()
+  // Reset input manager
+  InputManager.reset()
   
   levelData = Levels.get(currentLevel)
   
@@ -225,7 +235,7 @@ function createBoard(){
       cell.dataset.y = y
       
       setColor(cell, color)
-      addInputHandlers(cell, x, y)
+      setupCrossPlatformInput(cell, x, y)
       
       boardEl.appendChild(cell)
       cells[y][x] = cell
@@ -269,372 +279,172 @@ function setColor(cell, data){
 }
 
 
-// ================= UNIFIED INPUT HANDLERS (PRODUCTION-READY) =================
-/**
- * addInputHandlers - Единая система обработки ввода для touch + mouse
- * 
- * Поддерживаемые взаимодействия:
- * - Touch: swipe (мобильные устройства)
- * - Mouse: drag/swipe + hover preview (desktop)
- * 
- * Защита от конфликтов:
- * - activePointerId предотвращает одновременную обработку touch и mouse
- * - Проверка e.button === 0 для mouse событий (только левая кнопка)
- * - DRAG_THRESHOLD предотвращает случайные микро-свайпы
- * 
- * @param {HTMLElement} cell - DOM элемент ячейки
- * @param {number} x - Координата X на доске
- * @param {number} y - Координата Y на доске
- */
-function addInputHandlers(cell, x, y) {
+// ================= CROSS-PLATFORM INPUT SETUP =================
+
+function setupCrossPlatformInput(cell, x, y) {
+  // Предотвращаем стандартное поведение браузера
+  cell.addEventListener('dragstart', (e) => e.preventDefault());
   
-  // ================= TOUCH START =================
-  cell.addEventListener('touchstart', (e) => {
-    // Предотвращаем стандартное поведение (прокрутка, зум)
-    e.preventDefault()
-    
-    // Anti-spam проверка
-    const now = Date.now()
-    if (now - lastClickTime < CLICK_COOLDOWN) return
-    
-    // Блокировка ввода во время анимаций и специальных эффектов
-    if (gameLocked || isAnimating || isProcessingSpecial) return
-    
-    // Защита от множественных касаний - только первый палец
-    if (activePointerId !== null) return
-    
-    const touch = e.touches[0]
-    activePointerId = touch.identifier
-    
-    lastClickTime = now
-    
-    // Сохраняем начальные координаты для swipe расчета
-    dragStartX = touch.clientX
-    dragStartY = touch.clientY
-    isMouseDown = true
-    isDragging = false
-    
-    // Визуальная обратная связь - выделяем ячейку
-    selected = {x, y}
-    highlightCell(x, y)
-  }, { passive: false })
-  
-  // ================= TOUCH END =================
-  cell.addEventListener('touchend', (e) => {
-    e.preventDefault()
-    
-    // Проверяем, что это наш активный указатель
-    const touch = e.changedTouches[0]
-    if (activePointerId !== touch.identifier) return
-    
-    // Блокировка ввода
-    if (gameLocked || isAnimating || isProcessingSpecial) {
-      resetInputState()
-      return
-    }
-    
-    const endX = touch.clientX
-    const endY = touch.clientY
-    
-    // Вычисляем расстояние свайпа
-    const dx = endX - dragStartX
-    const dy = endY - dragStartY
-    const distance = Math.sqrt(dx * dx + dy * dy)
-    
-    // Проверяем, превышает ли свайп порог
-    if (distance >= DRAG_THRESHOLD) {
-      // Это свайп - обрабатываем
-      processSwipe(dragStartX, dragStartY, endX, endY)
-    } else {
-      // Это тап - обрабатываем как клик
-      const now = Date.now()
-      if (now - lastClickTime < CLICK_COOLDOWN) {
-        resetInputState()
-        return
-      }
-      lastClickTime = now
-      
-      onCellClick(x, y)
-    }
-    
-    // Сбрасываем состояние ввода
-    resetInputState()
-  }, { passive: false })
-  
-  // ================= TOUCH CANCEL =================
-  cell.addEventListener('touchcancel', (e) => {
-    // Сбрасываем состояние при прерывании касания (звонок, уведомление)
-    resetInputState()
-  })
-  
-  // ================= MOUSE DOWN =================
+  // === MOUSE EVENTS (Desktop) ===
   cell.addEventListener('mousedown', (e) => {
-    // Только левая кнопка мыши (button === 0)
-    if (e.button !== 0) return
-    
-    // Предотвращаем выделение текста при драге
-    e.preventDefault()
-    
-    // Anti-spam проверка
-    const now = Date.now()
-    if (now - lastClickTime < CLICK_COOLDOWN) return
-    
-    // Блокировка ввода
-    if (gameLocked || isAnimating || isProcessingSpecial) return
-    
-    // Защита от конфликта с touch событиями
-    if (activePointerId !== null) return
-    
-    // Для mouse используем специальный идентификатор
-    activePointerId = 'mouse'
-    
-    lastClickTime = now
-    
-    // Сохраняем начальные координаты
-    dragStartX = e.clientX
-    dragStartY = e.clientY
-    isMouseDown = true
-    isDragging = false
-    
-    // Визуальная обратная связь
-    selected = {x, y}
-    highlightCell(x, y)
-    
-    // Предотвращаем drag изображений и текста
-    e.preventDefault()
-  })
+    e.preventDefault();
+    handleDragStart(x, y, e);
+  });
   
-  // ================= MOUSE ENTER (HOVER PREVIEW) =================
-  cell.addEventListener('mouseenter', (e) => {
-    // Hover preview только для desktop (не активно во время драга)
-    if (!DESKTOP_SWAP_PREVIEW) return
-    if (isMouseDown || isDragging) return
-    if (gameLocked || isAnimating || isProcessingSpecial) return
-    
-    // Убираем предыдущий hover
-    if (currentHoverCell && currentHoverCell !== cell) {
-      currentHoverCell.classList.remove('hoverSwap')
-    }
-    
-    // Показываем preview только если есть выбранная ячейка
-    if (selected && (selected.x !== x || selected.y !== y)) {
-      const dx = Math.abs(selected.x - x)
-      const dy = Math.abs(selected.y - y)
-      
-      // Подсвечиваем только соседние ячейки
-      if (dx + dy === 1) {
-        cell.classList.add('hoverSwap')
-        currentHoverCell = cell
-      }
-    }
-  })
+  // === TOUCH EVENTS (Mobile) ===
+  cell.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    handleDragStart(x, y, e);
+  }, { passive: false });
   
-  // ================= MOUSE LEAVE =================
-  cell.addEventListener('mouseleave', (e) => {
-    // Убираем hover эффект
-    if (currentHoverCell === cell) {
-      cell.classList.remove('hoverSwap')
-      currentHoverCell = null
-    }
-  })
+  // Убираем старые обработчики addSwipe, так как теперь всё в одном месте
 }
 
-// ================= GLOBAL MOUSE HANDLERS =================
-/**
- * Глобальные обработчики mousemove и mouseup на document
- * Преимущества:
- * - Отслеживание мыши за пределами ячейки (важно для drag)
- * - Предотвращение потери событий при быстром движении
- * - Централизованное управление состоянием драга
- */
-document.addEventListener('mousemove', (e) => {
-  // Обрабатываем только если активен mouse драг
-  if (activePointerId !== 'mouse') return
-  if (!isMouseDown) return
-  if (gameLocked || isAnimating || isProcessingSpecial) return
-  
-  // Вычисляем расстояние от начальной точки
-  const dx = e.clientX - dragStartX
-  const dy = e.clientY - dragStartY
-  const distance = Math.sqrt(dx * dx + dy * dy)
-  
-  // Проверяем, начался ли драг (превысили порог)
-  if (!isDragging && distance >= DRAG_THRESHOLD) {
-    isDragging = true
-    
-    // Убираем hover эффект при начале драга
-    if (currentHoverCell) {
-      currentHoverCell.classList.remove('hoverSwap')
-      currentHoverCell = null
+function setupGlobalMouseHandlers() {
+  // Глобальные обработчики для отслеживания движения мыши и отпускания
+  document.addEventListener('mousemove', (e) => {
+    if (InputManager.isDragging) {
+      e.preventDefault();
+      handleDragMove(e);
     }
-  }
+  });
   
-  // Визуальный фидбек: меняем курсор при драге
-  if (isDragging) {
-    document.body.style.cursor = 'grabbing'
-  }
-})
-
-document.addEventListener('mouseup', (e) => {
-  // Обрабатываем только mouse события
-  if (activePointerId !== 'mouse') return
-  if (!isMouseDown) {
-    resetInputState()
-    return
-  }
-  
-  // Сбрасываем курсор
-  document.body.style.cursor = ''
-  
-  // Блокировка ввода
-  if (gameLocked || isAnimating || isProcessingSpecial) {
-    resetInputState()
-    return
-  }
-  
-  // Только левая кнопка мыши
-  if (e.button !== 0) {
-    resetInputState()
-    return
-  }
-  
-  const endX = e.clientX
-  const endY = e.clientY
-  
-  // Если это был драг - обрабатываем свайп
-  if (isDragging) {
-    processSwipe(dragStartX, dragStartY, endX, endY)
-  } else {
-    // Это был клик - находим целевую ячейку
-    const targetCell = document.elementFromPoint(endX, endY)
-    if (targetCell && targetCell.classList.contains('cell')) {
-      const targetX = parseInt(targetCell.dataset.x)
-      const targetY = parseInt(targetCell.dataset.y)
-      
-      const now = Date.now()
-      if (now - lastClickTime < CLICK_COOLDOWN) {
-        resetInputState()
-        return
-      }
-      lastClickTime = now
-      
-      onCellClick(targetX, targetY)
+  document.addEventListener('mouseup', (e) => {
+    if (InputManager.isDragging) {
+      e.preventDefault();
+      handleDragEnd(e);
     }
-  }
+  });
   
-  // Сбрасываем состояние
-  resetInputState()
-})
-
-// ================= RESET INPUT STATE =================
-/**
- * resetInputState - Централизованный сброс состояния ввода
- * Вызывается при:
- * - Завершении свайпа/клика
- * - Отмене касания
- * - Потере фокуса окна
- * - Ошибках валидации
- * 
- * Гарантирует отсутствие утечек состояния между взаимодействиями
- */
-function resetInputState() {
-  isMouseDown = false
-  isDragging = false
-  activePointerId = null
-  dragStartX = 0
-  dragStartY = 0
+  // Для touch событий используем глобальные обработчики на document
+  document.addEventListener('touchmove', (e) => {
+    if (InputManager.isDragging) {
+      e.preventDefault();
+      handleDragMove(e);
+    }
+  }, { passive: false });
   
-  // Сбрасываем hover эффекты
-  if (currentHoverCell) {
-    currentHoverCell.classList.remove('hoverSwap')
-    currentHoverCell = null
-  }
+  document.addEventListener('touchend', (e) => {
+    if (InputManager.isDragging) {
+      e.preventDefault();
+      handleDragEnd(e);
+    }
+  });
   
-  // Сбрасываем выделение если не в процессе обработки
-  if (!isAnimating && !isProcessingSpecial) {
-    clearHighlight()
-    selected = null
-  }
+  // Отмена при потере фокуса
+  document.addEventListener('touchcancel', () => {
+    InputManager.reset();
+    clearHighlight();
+  });
   
-  // Восстанавливаем курсор
-  document.body.style.cursor = ''
+  // Для мыши - отмена при выходе за пределы окна
+  window.addEventListener('blur', () => {
+    InputManager.reset();
+    clearHighlight();
+  });
 }
 
+function handleDragStart(x, y, e) {
+  // ✨ ANTI-SPAM: Защита срабатывает первой, до всех проверок
+  const now = Date.now()
+  if(now - lastClickTime < CLICK_COOLDOWN) return
+  
+  if(gameLocked || isAnimating || isProcessingSpecial) return
+  
+  lastClickTime = now
+  
+  const pos = InputManager.getPosition(e);
+  InputManager.isDragging = true;
+  InputManager.dragStartX = pos.x;
+  InputManager.dragStartY = pos.y;
+  InputManager.dragStartCell = { x, y };
+  
+  // Для быстрого клика (без драга) на десктопе
+  if (!InputManager.isTouchDevice && !selected) {
+    selected = { x, y };
+    highlightCell(x, y);
+  } else if (InputManager.isTouchDevice) {
+    selected = { x, y };
+    highlightCell(x, y);
+  }
+}
 
-// ================= PROCESS SWIPE (UNIFIED) =================
-/**
- * processSwipe - Единая система обработки свайпов для touch и mouse
- * 
- * Алгоритм:
- * 1. Определяет направление свайпа по вектору (dx, dy)
- * 2. Использует DRAG_THRESHOLD для минимального расстояния
- * 3. Вычисляет целевую ячейку
- * 4. Делегирует выполнение в onCellClick (сохраняя всю игровую логику)
- * 
- * Защита:
- * - Проверка границ доски
- * - Валидация входных параметров
- * - Anti-spam защита сохраняется внутри onCellClick
- * 
- * @param {number} startX - Начальная X координата указателя
- * @param {number} startY - Начальная Y координата указателя
- * @param {number} endX - Конечная X координата указателя  
- * @param {number} endY - Конечная Y координата указателя
- */
-async function processSwipe(startX, startY, endX, endY) {
-  // Защита от вызова без activePointerId
-  if (!activePointerId) return
+function handleDragMove(e) {
+  if (!InputManager.isDragging) return;
   
-  // Блокировка ввода
-  if (gameLocked || isAnimating || isProcessingSpecial) return
+  const pos = InputManager.getPosition(e);
+  const currentCell = InputManager.getCellFromEvent(e);
   
-  // Вычисляем вектор свайпа
-  const dx = endX - startX
-  const dy = endY - startY
-  const distance = Math.sqrt(dx * dx + dy * dy)
-  
-  // Проверяем порог
-  if (distance < DRAG_THRESHOLD) {
-    return
+  if (currentCell) {
+    const x = parseInt(currentCell.dataset.x);
+    const y = parseInt(currentCell.dataset.y);
+    
+    // Подсвечиваем текущую ячейку при наведении (для мыши)
+    if (!InputManager.isTouchDevice && InputManager.dragStartCell) {
+      highlightCell(InputManager.dragStartCell.x, InputManager.dragStartCell.y);
+    }
+    
+    // Показываем возможную цель свайпа
+    updateDragHighlight(x, y);
+  }
+}
+
+function handleDragEnd(e) {
+  if (!InputManager.isDragging || !InputManager.dragStartCell) {
+    InputManager.reset();
+    return;
   }
   
-  // Определяем начальную ячейку (та, что была выбрана)
-  if (!selected) {
-    return
-  }
+  const pos = InputManager.getPosition(e);
+  const dx = pos.x - InputManager.dragStartX;
+  const dy = pos.y - InputManager.dragStartY;
   
-  const fromX = selected.x
-  const fromY = selected.y
+  const startX = InputManager.dragStartCell.x;
+  const startY = InputManager.dragStartCell.y;
   
-  let targetX = fromX
-  let targetY = fromY
+  let targetX = startX;
+  let targetY = startY;
   
-  // Определяем направление свайпа (преимущественное направление)
+  // Определяем направление свайпа
+  const threshold = 20; // Минимальное расстояние для распознавания свайпа
+  
   if (Math.abs(dx) > Math.abs(dy)) {
     // Горизонтальный свайп
-    targetX = dx > 0 ? fromX + 1 : fromX - 1
+    if (Math.abs(dx) > threshold) {
+      targetX = dx > 0 ? startX + 1 : startX - 1;
+    }
   } else {
     // Вертикальный свайп
-    targetY = dy > 0 ? fromY + 1 : fromY - 1
+    if (Math.abs(dy) > threshold) {
+      targetY = dy > 0 ? startY + 1 : startY - 1;
+    }
   }
   
-  // Проверка границ доски
-  if (targetX < 0 || targetX >= SIZE || targetY < 0 || targetY >= SIZE) {
-    resetInputState()
-    return
+  InputManager.reset();
+  
+  // Обрабатываем клик/свайп
+  onCellClick(targetX, targetY);
+}
+
+function updateDragHighlight(currentX, currentY) {
+  if (!InputManager.dragStartCell) return;
+  
+  const dx = currentX - InputManager.dragStartCell.x;
+  const dy = currentY - InputManager.dragStartCell.y;
+  
+  // Визуальная подсказка для игрока
+  clearHighlight();
+  
+  if (InputManager.dragStartCell) {
+    cells[InputManager.dragStartCell.y][InputManager.dragStartCell.x]?.classList.add('selected');
   }
   
-  // Проверка соседства (только смежные ячейки)
-  const cellDx = Math.abs(fromX - targetX)
-  const cellDy = Math.abs(fromY - targetY)
-  
-  if (cellDx + cellDy !== 1) {
-    resetInputState()
-    return
+  // Показываем возможную цель
+  if (Math.abs(dx) === 1 && dy === 0) {
+    cells[InputManager.dragStartCell.y][currentX]?.classList.add('drag-target');
+  } else if (Math.abs(dy) === 1 && dx === 0) {
+    cells[currentY][InputManager.dragStartCell.x]?.classList.add('drag-target');
   }
-  
-  // Выполняем свайп через существующую логику onCellClick
-  await onCellClick(targetX, targetY)
 }
 
 
@@ -655,7 +465,7 @@ function highlightCell(x, y){
 function clearHighlight(){
   for(let yy=0; yy<SIZE; yy++){
     for(let xx=0; xx<SIZE; xx++){
-      cells[yy][xx].classList.remove("selected")
+      cells[yy][xx].classList.remove("selected", "drag-target")
     }
   }
 }
