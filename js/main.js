@@ -225,6 +225,8 @@ function setColor(cell, data){
 function addSwipe(cell, x, y){
   let startX = 0
   let startY = 0
+  let isDragging = false
+  let mouseDown = false
   
   // === TOUCH SUPPORT (Mobile) ===
   cell.addEventListener("touchstart", e => {
@@ -269,7 +271,9 @@ function addSwipe(cell, x, y){
     onCellClick(targetX, targetY)
   })
   
-  // === MOUSE SUPPORT (Desktop Web) ===
+  // === MOUSE SUPPORT (Desktop Web) - Улучшенный click-to-select ===
+  
+  // Клик для выбора первой ячейки
   cell.addEventListener("mousedown", e => {
     e.preventDefault()
     
@@ -278,38 +282,113 @@ function addSwipe(cell, x, y){
     
     if(gameLocked || isAnimating || isProcessingSpecial) return
     
-    lastClickTime = now
+    // Если уже есть выбранная ячейка - это вторая ячейка
+    if(selected){
+      // Проверяем, соседняя ли она
+      const dx = Math.abs(selected.x - x)
+      const dy = Math.abs(selected.y - y)
+      
+      if(dx + dy === 1){
+        // Соседняя - выполняем swap
+        lastClickTime = now
+        onCellClick(x, y)
+        return
+      } else {
+        // Не соседняя - сбрасываем выбор и выбираем новую
+        clearHighlight()
+        selected = null
+      }
+    }
     
+    // Первый клик - выбираем ячейку
+    lastClickTime = now
     startX = e.clientX
     startY = e.clientY
+    isDragging = false
+    mouseDown = true
     selected = {x, y}
     highlightCell(x, y)
   })
   
-  cell.addEventListener("mouseup", e => {
-    const now = Date.now()
-    if(now - lastClickTime < CLICK_COOLDOWN) return
+  // Драг для swipe-жеста мышью (опционально, для тех кто привык)
+  cell.addEventListener("mousemove", e => {
+    if(!mouseDown || !selected) return
     
-    if(gameLocked || isAnimating || isProcessingSpecial) return
+    const dx = e.clientX - startX
+    const dy = e.clientY - startY
     
-    const endX = e.clientX
-    const endY = e.clientY
-    
-    const dx = endX - startX
-    const dy = endY - startY
-    
-    let targetX = x
-    let targetY = y
-    
-    if(Math.abs(dx) > Math.abs(dy)){
-      if(dx > 20) targetX = x + 1
-      if(dx < -20) targetX = x - 1
-    }else{
-      if(dy > 20) targetY = y + 1
-      if(dy < -20) targetY = y - 1
+    // Если мышь сдвинулась достаточно далеко - считаем это драгом
+    if(Math.abs(dx) > 15 || Math.abs(dy) > 15){
+      isDragging = true
     }
+  })
+  
+  // Отпускание мыши
+  cell.addEventListener("mouseup", e => {
+    if(!mouseDown) return
+    mouseDown = false
     
-    onCellClick(targetX, targetY)
+    // Если это был драг - обрабатываем как swipe
+    if(isDragging && selected){
+      const now = Date.now()
+      if(now - lastClickTime < CLICK_COOLDOWN) return
+      
+      if(gameLocked || isAnimating || isProcessingSpecial) return
+      
+      const endX = e.clientX
+      const endY = e.clientY
+      
+      const dx = endX - startX
+      const dy = endY - startY
+      
+      let targetX = x
+      let targetY = y
+      
+      if(Math.abs(dx) > Math.abs(dy)){
+        if(dx > 25) targetX = x + 1
+        if(dx < -25) targetX = x - 1
+      }else{
+        if(dy > 25) targetY = y + 1
+        if(dy < -25) targetY = y - 1
+      }
+      
+      // Проверяем выход за границы
+      if(targetX >= 0 && targetX < SIZE && targetY >= 0 && targetY < SIZE){
+        lastClickTime = now
+        onCellClick(targetX, targetY)
+      }
+      
+      isDragging = false
+    }
+  })
+  
+  // Глобальный обработчик для клика по второй ячейке
+  document.addEventListener("mouseup", e => {
+    if(!selected || isDragging) return
+    
+    // Находим ячейку под курсором
+    const target = document.elementFromPoint(e.clientX, e.clientY)
+    if(!target || !target.classList.contains("cell")) return
+    
+    const targetX = parseInt(target.dataset.x)
+    const targetY = parseInt(target.dataset.y)
+    
+    // Если кликнули ту же ячейку - снимаем выделение
+    if(targetX === selected.x && targetY === selected.y) return
+    
+    const dx = Math.abs(selected.x - targetX)
+    const dy = Math.abs(selected.y - targetY)
+    
+    // Если соседняя - выполняем swap
+    if(dx + dy === 1){
+      const now = Date.now()
+      if(now - lastClickTime < CLICK_COOLDOWN) return
+      
+      if(gameLocked || isAnimating || isProcessingSpecial) return
+      
+      lastClickTime = now
+      onCellClick(targetX, targetY)
+    }
   })
   
   // Предотвращаем выделение текста при драге
