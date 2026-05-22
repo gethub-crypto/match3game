@@ -344,7 +344,28 @@ z-index:10000;
       }
 
 
-/* Предотвращаем выделение текста на доске */
+/* Cross-platform input feedback */
+.cell {
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  touch-action: none; /* Prevent browser gestures */
+}
+
+.cell.selected {
+  box-shadow: 0 0 15px rgba(255, 255, 255, 0.8);
+  transform: scale(1.1);
+  z-index: 10;
+}
+
+.cell.drag-target {
+  box-shadow: 0 0 10px rgba(255, 255, 0, 0.6);
+  transform: scale(1.05);
+}
+
+/* Prevent text selection during drag */
 #board {
   user-select: none;
   -webkit-user-select: none;
@@ -352,16 +373,19 @@ z-index:10000;
   -ms-user-select: none;
 }
 
-.cell {
-  cursor: pointer; /* Показываем, что ячейки кликабельны */
-  transition: transform 0.1s;
+/* Responsive board size */
+@media (max-width: 768px) {
+  .cell {
+    width: 40px;
+    height: 40px;
+    font-size: 20px;
+  }
 }
 
-.cell:hover {
-  transform: scale(1.05); /* Легкий эффект при наведении */
-  box-shadow: 0 0 10px rgba(255,255,255,0.3);
-}
-
-.cell:active {
-  transform: scale(0.95); /* Эффект нажатия */
-}
+@media (min-width: 769px) {
+  .cell {
+    width: 60px;
+    height: 60px;
+    font-size: 30px;
+  }
+  }
