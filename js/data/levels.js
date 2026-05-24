@@ -15,7 +15,7 @@ const Levels = {
         moves: +moves,
         type,
         target: +target,
-        colors: colors || null,
+        colors: colors ? colors.split('+') : null,
         reward: +reward,
         difficulty
       };
@@ -26,5 +26,9 @@ const Levels = {
 
   get(levelId) {
     return this.data.find(l => l.id === levelId);
+  },
+
+  getAll() {
+    return this.data;
   }
 };
