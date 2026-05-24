@@ -6,6 +6,7 @@ let levelData = null
 let movesLeft = 0
 let score = 0
 let collected = 0
+let collectProgress = {}
 
 let levelFinished = false
 let gameLocked = false
@@ -191,8 +192,12 @@ function initLevel(){
   
   levelData = Levels.get(currentLevel)
   
+  // Сбрасываем прогресс коллекционирования
+  collectProgress = {}
+  
   createBoard()
   startGameplay()
+  initCollectTracker()
   startHintTimer()
 }
 
@@ -711,6 +716,16 @@ async function processMatchesAsync(){
         console.log(`💥 Combo x${comboMultiplier}! +${finalScore} points (base: ${baseScore})`)
       }
       
+      // 🎯 COLLECT: Учитываем сбор фишек нужного цвета
+      if (levelData.type === "collect" && levelData.colors) {
+        const cellColor = board[cellPos.y][cellPos.x]
+        if (typeof cellColor === "string" && levelData.colors.includes(cellColor)) {
+          collectProgress[cellColor] = (collectProgress[cellColor] || 0) + 1
+          collected++
+          updateCollectTracker(cellColor)
+        }
+      }
+      
       board[cellPos.y][cellPos.x] = null
     }
     
@@ -1008,7 +1023,61 @@ function updateHUD(){
   
   if(levelData.type === "score"){
     document.getElementById("targetDisplay").innerText = `Цель: ${score} / ${levelData.target}`
+  } else if(levelData.type === "collect"){
+    const colorNames = levelData.colors.join(" + ")
+    document.getElementById("targetDisplay").innerText = `Собрать ${colorNames}: ${collected} / ${levelData.target}`
   }
+}
+
+
+// ================= COLLECT TRACKER =================
+
+function initCollectTracker() {
+  const tracker = document.getElementById("collectTracker")
+  if (!tracker) return
+
+  tracker.innerHTML = ""
+
+  if (levelData.type !== "collect" || !levelData.colors) return
+
+  collectProgress = {}
+
+  levelData.colors.forEach(color => {
+    collectProgress[color] = 0
+
+    const item = document.createElement("div")
+    item.className = "collect-item"
+    item.id = `collect-${color}`
+
+    item.innerHTML = `
+      <span class="color-dot" style="background:${color}"></span>
+      <span class="counter">
+        <span class="done">0</span>
+        <span class="total">/${levelData.target}</span>
+      </span>
+    `
+
+    tracker.appendChild(item)
+  })
+}
+
+function updateCollectTracker(color) {
+  const item = document.getElementById(`collect-${color}`)
+  if (!item) return
+
+  const done = item.querySelector(".done")
+  const current = collectProgress[color] || 0
+
+  done.textContent = current
+
+  if (current > 0) {
+    item.classList.add("collected")
+  }
+
+  // Анимация пульса при изменении
+  item.classList.remove("pulse")
+  void item.offsetWidth // reflow
+  item.classList.add("pulse")
 }
 
 
@@ -1018,6 +1087,11 @@ function checkWin(){
   if(levelFinished) return
   
   if(levelData.type === "score" && score >= levelData.target){
+    winLevel()
+    return
+  }
+  
+  if(levelData.type === "collect" && collected >= levelData.target){
     winLevel()
     return
   }
@@ -1036,6 +1110,9 @@ function winLevel(){
   levelFinished = true
   gameLocked = true
   isAnimating = false
+  
+  // Сохраняем прогресс уровня
+  completeLevel(currentLevel)
   
   animateCoins()
   
@@ -1082,6 +1159,34 @@ function restartLevel(){
   if(!LivesSystem.useLife()) return
   hidePopup()
   initLevel()
+}
+
+
+// ================= LEVEL MAP =================
+
+async function renderLevelMap() {
+  await Levels.load()
+  const grid = document.getElementById("levelGrid")
+  if (!grid) return
+
+  const completed = getCompletedLevels()
+  const levels = Levels.getAll()
+
+  grid.innerHTML = levels.map(l => {
+    let cls = "locked"
+    if (completed.includes(l.id)) cls = "completed"
+    else if (isLevelUnlocked(l.id)) cls = "unlocked"
+
+    const disabled = cls === "locked" ? "disabled" : ""
+    return `<button class="level-btn ${cls}" ${disabled}
+      onclick="selectLevel(${l.id})">${l.id}</button>`
+  }).join("")
+}
+
+function selectLevel(id) {
+  if (!isLevelUnlocked(id)) return
+  currentLevel = id
+  startLevel()
 }
 
 
