@@ -30,9 +30,9 @@
 <div id="mapScreen" class="screen">
   <h2>Карта уровней</h2>
 
-  <button onclick="startLevel()">Level 1</button>
+  <div id="levelGrid"></div>
 
-  <br><br>
+  <br>
   <button onclick="goTo('menu')">Назад</button>
 </div>
 
@@ -45,6 +45,9 @@
   <div id="movesDisplay">Ходы: 0</div>
   <div id="targetDisplay"></div>
   </div>
+
+  <!-- ТРЕКЕР КОЛЛЕКЦИОННЫХ ФИШЕК -->
+  <div id="collectTracker"></div>
 
   <!-- ИГРОВОЕ ПОЛЕ -->
   <div id="board"></div>
