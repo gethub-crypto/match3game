@@ -4,7 +4,6 @@ let currentLevel = 1
 let levelData = null
 
 let movesLeft = 0
-let score = 0
 let collected = 0
 let collectProgress = {}
 
@@ -20,53 +19,26 @@ let isAnimating = false
 let lastClickTime = 0
 const CLICK_COOLDOWN = 150 // мс между кликами
 
-// ================= COMBO SYSTEM (PRODUCTION-READY) =================
-/**
- * ComboManager - Легковесный менеджер комбо-системы
- * 
- * Архитектура:
- * - Комбо активируется только во время каскадов (chain reactions)
- * - Первый матч хода игрока НЕ увеличивает комбо
- * - Каждый последующий каскад увеличивает комбо на 1
- * - Сброс происходит при новом ходе игрока или завершении каскадов
- * 
- * Защита от багов:
- * - Флаг comboActive предотвращает дублирование инкрементов
- * - Сброс гарантирован при новом свайпе
- * - Множитель применяется только к базовым очкам матча
- */
+// ================= COMBO SYSTEM =================
 const ComboManager = {
   combo: 0,
-  comboActive: false, // Флаг активной комбо-цепочки
-  firstMatchInChain: true, // Первый матч в цепочке (ход игрока)
+  comboActive: false,
+  firstMatchInChain: true,
   
-  /**
-   * Вызывается при обнаружении любого матча
-   * Увеличивает комбо только если это каскад (не первый матч)
-   */
   onMatchDetected() {
     if (this.firstMatchInChain) {
-      // Первый матч - не увеличиваем комбо, но активируем цепочку
       this.firstMatchInChain = false
       this.comboActive = true
     } else if (this.comboActive) {
-      // Каскад - увеличиваем комбо
       this.combo++
       console.log(`🔥 Combo x${this.combo + 1}! Chain continuing...`)
     }
   },
   
-  /**
-   * Возвращает текущий множитель комбо
-   * Минимальный множитель = 1 (нет комбо)
-   */
   getMultiplier() {
     return this.comboActive ? (this.combo + 1) : 1
   },
   
-  /**
-   * Сброс комбо (вызывается при новом ходе или завершении каскадов)
-   */
   reset() {
     if (this.combo > 0) {
       console.log(`✨ Combo finished! Total chain: ${this.combo + 1} matches`)
@@ -76,9 +48,6 @@ const ComboManager = {
     this.firstMatchInChain = true
   },
   
-  /**
-   * Проверка активности комбо
-   */
   isActive() {
     return this.comboActive
   }
@@ -93,15 +62,6 @@ let cells = []
 let selected = null
 
 // ================= CROSS-PLATFORM INPUT MANAGER =================
-/**
- * InputManager - Универсальный обработчик ввода для всех платформ
- * 
- * Поддерживает:
- * - Мышь (desktop)
- * - Тач (mobile/tablet)
- * - Стилус (планшеты с пером)
- * - Предотвращает конфликты между разными типами ввода
- */
 const InputManager = {
   isDragging: false,
   dragStartX: 0,
@@ -111,7 +71,6 @@ const InputManager = {
   isTouchDevice: false,
   
   init() {
-    // Определяем тип устройства
     this.isTouchDevice = ('ontouchstart' in window) || 
                         (navigator.maxTouchPoints > 0) || 
                         (navigator.msMaxTouchPoints > 0);
@@ -120,7 +79,6 @@ const InputManager = {
   },
   
   getPosition(e) {
-    // Универсальное получение координат из разных типов событий
     if (e.touches && e.touches.length > 0) {
       return { x: e.touches[0].clientX, y: e.touches[0].clientY };
     }
@@ -154,7 +112,6 @@ async function init(){
   updateScreens()
   updateCoinsUI()
   
-  // Добавляем глобальные обработчики для мыши
   setupGlobalMouseHandlers();
 }
 
@@ -181,18 +138,13 @@ function initLevel(){
   isAnimating = false
   isProcessingSpecial = false
   
-  // ✨ ANTI-SPAM: Сбрасываем таймер при новом уровне
   lastClickTime = 0
   
-  // ✨ COMBO: Сбрасываем комбо при новом уровне
   ComboManager.reset()
-  
-  // Reset input manager
   InputManager.reset()
   
   levelData = Levels.get(currentLevel)
   
-  // Сбрасываем прогресс коллекционирования
   collectProgress = {}
   
   createBoard()
@@ -206,7 +158,6 @@ function initLevel(){
 
 function startGameplay(){
   movesLeft = levelData.moves
-  score = 0
   collected = 0
   updateHUD()
 }
@@ -287,26 +238,20 @@ function setColor(cell, data){
 // ================= CROSS-PLATFORM INPUT SETUP =================
 
 function setupCrossPlatformInput(cell, x, y) {
-  // Предотвращаем стандартное поведение браузера
   cell.addEventListener('dragstart', (e) => e.preventDefault());
   
-  // === MOUSE EVENTS (Desktop) ===
   cell.addEventListener('mousedown', (e) => {
     e.preventDefault();
     handleDragStart(x, y, e);
   });
   
-  // === TOUCH EVENTS (Mobile) ===
   cell.addEventListener('touchstart', (e) => {
     e.preventDefault();
     handleDragStart(x, y, e);
   }, { passive: false });
-  
-  // Убираем старые обработчики addSwipe, так как теперь всё в одном месте
 }
 
 function setupGlobalMouseHandlers() {
-  // Глобальные обработчики для отслеживания движения мыши и отпускания
   document.addEventListener('mousemove', (e) => {
     if (InputManager.isDragging) {
       e.preventDefault();
@@ -321,7 +266,6 @@ function setupGlobalMouseHandlers() {
     }
   });
   
-  // Для touch событий используем глобальные обработчики на document
   document.addEventListener('touchmove', (e) => {
     if (InputManager.isDragging) {
       e.preventDefault();
@@ -336,13 +280,11 @@ function setupGlobalMouseHandlers() {
     }
   });
   
-  // Отмена при потере фокуса
   document.addEventListener('touchcancel', () => {
     InputManager.reset();
     clearHighlight();
   });
   
-  // Для мыши - отмена при выходе за пределы окна
   window.addEventListener('blur', () => {
     InputManager.reset();
     clearHighlight();
@@ -350,7 +292,6 @@ function setupGlobalMouseHandlers() {
 }
 
 function handleDragStart(x, y, e) {
-  // ✨ ANTI-SPAM: Защита срабатывает первой, до всех проверок
   const now = Date.now()
   if(now - lastClickTime < CLICK_COOLDOWN) return
   
@@ -364,7 +305,6 @@ function handleDragStart(x, y, e) {
   InputManager.dragStartY = pos.y;
   InputManager.dragStartCell = { x, y };
   
-  // Для быстрого клика (без драга) на десктопе
   if (!InputManager.isTouchDevice && !selected) {
     selected = { x, y };
     highlightCell(x, y);
@@ -384,12 +324,10 @@ function handleDragMove(e) {
     const x = parseInt(currentCell.dataset.x);
     const y = parseInt(currentCell.dataset.y);
     
-    // Подсвечиваем текущую ячейку при наведении (для мыши)
     if (!InputManager.isTouchDevice && InputManager.dragStartCell) {
       highlightCell(InputManager.dragStartCell.x, InputManager.dragStartCell.y);
     }
     
-    // Показываем возможную цель свайпа
     updateDragHighlight(x, y);
   }
 }
@@ -410,16 +348,13 @@ function handleDragEnd(e) {
   let targetX = startX;
   let targetY = startY;
   
-  // Определяем направление свайпа
-  const threshold = 20; // Минимальное расстояние для распознавания свайпа
+  const threshold = 20;
   
   if (Math.abs(dx) > Math.abs(dy)) {
-    // Горизонтальный свайп
     if (Math.abs(dx) > threshold) {
       targetX = dx > 0 ? startX + 1 : startX - 1;
     }
   } else {
-    // Вертикальный свайп
     if (Math.abs(dy) > threshold) {
       targetY = dy > 0 ? startY + 1 : startY - 1;
     }
@@ -427,27 +362,21 @@ function handleDragEnd(e) {
   
   InputManager.reset();
   
-  // Обрабатываем клик/свайп
   onCellClick(targetX, targetY);
 }
 
 function updateDragHighlight(currentX, currentY) {
   if (!InputManager.dragStartCell) return;
   
-  const dx = currentX - InputManager.dragStartCell.x;
-  const dy = currentY - InputManager.dragStartCell.y;
-  
-  // Визуальная подсказка для игрока
   clearHighlight();
   
   if (InputManager.dragStartCell) {
     cells[InputManager.dragStartCell.y][InputManager.dragStartCell.x]?.classList.add('selected');
   }
   
-  // Показываем возможную цель
-  if (Math.abs(dx) === 1 && dy === 0) {
+  if (Math.abs(currentX - InputManager.dragStartCell.x) === 1 && currentY === InputManager.dragStartCell.y) {
     cells[InputManager.dragStartCell.y][currentX]?.classList.add('drag-target');
-  } else if (Math.abs(dy) === 1 && dx === 0) {
+  } else if (Math.abs(currentY - InputManager.dragStartCell.y) === 1 && currentX === InputManager.dragStartCell.x) {
     cells[currentY][InputManager.dragStartCell.x]?.classList.add('drag-target');
   }
 }
@@ -479,14 +408,12 @@ function clearHighlight(){
 // ================= CLICK (ГЛАВНЫЙ ОБРАБОТЧИК) =================
 
 async function onCellClick(x, y){
-  // ✨ ANTI-SPAM: Проверка времени в главном обработчике (дополнительный уровень защиты)
   const now = Date.now()
   if(now - lastClickTime < CLICK_COOLDOWN) return
   
   if(gameLocked || isAnimating || isProcessingSpecial) return
   if(x<0 || x>=SIZE || y<0 || y>=SIZE) return
   
-  // ✨ ANTI-SPAM: Обновляем время последнего клика только при успешном выполнении
   lastClickTime = now
   
   if(!selected){
@@ -504,7 +431,6 @@ async function onCellClick(x, y){
     return
   }
   
-  // ✨ COMBO: Сбрасываем комбо при новом ходе игрока
   ComboManager.reset()
   
   isAnimating = true
@@ -515,7 +441,6 @@ async function onCellClick(x, y){
   clearHighlight()
   selected = null
   
-  // ВЫПОЛНЯЕМ SWAP
   const A = board[a.y][a.x]
   const B = board[b.y][b.x]
   
@@ -525,7 +450,6 @@ async function onCellClick(x, y){
   renderBoard()
   await delay(200)
   
-  // Проверяем special только если игрок САМ свайпнул special плитку
   let hasSpecialActivated = false
   
   if(board[b.y][b.x] && typeof board[b.y][b.x] === "object" && board[b.y][b.x] !== null && board[b.y][b.x].special){
@@ -545,7 +469,6 @@ async function onCellClick(x, y){
     await spawnNewWithDelay(150)
     renderBoard()
     
-    // ✨ COMBO: Активируем комбо-цепочку для special
     ComboManager.firstMatchInChain = false
     ComboManager.comboActive = true
     
@@ -556,12 +479,10 @@ async function onCellClick(x, y){
     startHintTimer()
     isAnimating = false
     
-    // ✨ COMBO: Сбрасываем после завершения цепочки
     ComboManager.reset()
     return
   }
   
-  // ПРОВЕРЯЕМ ОБЫЧНЫЕ МАТЧИ
   let matches = MatchDetection.getMatches(board)
   
   if(matches.length === 0){
@@ -578,7 +499,6 @@ async function onCellClick(x, y){
   movesLeft--
   updateHUD()
   
-  // ✨ COMBO: Начинаем комбо-цепочку с первого матча игрока
   await processMatchesAsync()
   
   updateHUD()
@@ -587,7 +507,6 @@ async function onCellClick(x, y){
   
   isAnimating = false
   
-  // ✨ COMBO: Сбрасываем после завершения всей цепочки
   ComboManager.reset()
 }
 
@@ -666,12 +585,10 @@ async function processMatchesAsync(){
     return
   }
   
-  // ✨ COMBO: Уведомляем менеджер о найденном матче
   ComboManager.onMatchDetected()
   
   for(const match of matches){
     
-    // Подсвечиваем ячейки матча
     match.cells.forEach(cellPos => {
       const el = cells[cellPos.y]?.[cellPos.x]
       if(el) el.classList.add("matchFlash")
@@ -682,7 +599,6 @@ async function processMatchesAsync(){
     let specialCell = null
     let specialType = null
     
-    // Определяем где будет создан special
     if(match.type === "rocket"){
       specialType = "rocket"
       specialCell = match.cells[1]
@@ -694,42 +610,33 @@ async function processMatchesAsync(){
       specialCell = match.cells[2]
     }
     
-    // 🔧 FIX: Защита special плиток от удаления при обычных матчах
-    // Special плитки НЕ удаляются при обычных совпадениях, только при активации игроком
     for(const cellPos of match.cells){
       const cell = board[cellPos.y][cellPos.x]
       
-      // Если это special плитка - ПРОПУСКАЕМ, не удаляем её
       if(typeof cell === "object" && cell !== null && cell.special){
-        continue // 🔧 Не удаляем, оставляем на доске
+        continue
       }
       
-      // Удаляем только обычные цветные плитки
-      // ✨ COMBO: Применяем множитель к базовым очкам
-      const baseScore = 50
-      const comboMultiplier = ComboManager.getMultiplier()
-      const finalScore = baseScore * comboMultiplier
-      score += finalScore
-      
-      // Визуальная обратная связь для комбо (опционально)
-      if (comboMultiplier > 1) {
-        console.log(`💥 Combo x${comboMultiplier}! +${finalScore} points (base: ${baseScore})`)
-      }
-      
-      // 🎯 COLLECT: Учитываем сбор фишек нужного цвета
-      if (levelData.type === "collect" && levelData.colors) {
-        const cellColor = board[cellPos.y][cellPos.x]
+      // 🎯 COLLECT: Сбор фишек нужного цвета с комбо-бонусом
+      const cellColor = board[cellPos.y][cellPos.x]
+      if (levelData.colors) {
         if (typeof cellColor === "string" && levelData.colors.includes(cellColor)) {
-          collectProgress[cellColor] = (collectProgress[cellColor] || 0) + 1
-          collected++
+          const comboBonus = ComboManager.isActive() ? ComboManager.combo : 0
+          const totalCollected = 1 + comboBonus
+          
+          collectProgress[cellColor] = (collectProgress[cellColor] || 0) + totalCollected
+          collected += totalCollected
           updateCollectTracker(cellColor)
+          
+          if (comboBonus > 0) {
+            console.log(`🔥 Combo x${comboBonus + 1}! +${totalCollected} ${cellColor} chips`)
+          }
         }
       }
       
       board[cellPos.y][cellPos.x] = null
     }
     
-    // 🔧 FIX: Создаём special плитку только если место свободно и там НЕ осталась другая special плитка
     if(specialCell && specialType && board[specialCell.y][specialCell.x] === null){
       board[specialCell.y][specialCell.x] = {
         color: randomColor(),
@@ -738,7 +645,6 @@ async function processMatchesAsync(){
       }
     }
     
-    // Убираем подсветку
     match.cells.forEach(cellPos => {
       const el = cells[cellPos.y]?.[cellPos.x]
       if(el) el.classList.remove("matchFlash")
@@ -748,7 +654,6 @@ async function processMatchesAsync(){
     await delay(300)
   }
   
-  // Gravity и spawn
   await dropWithDelay(150)
   await spawnNewWithDelay(150)
   renderBoard()
@@ -756,7 +661,6 @@ async function processMatchesAsync(){
   
   updateHUD()
   
-  // Проверяем новые матчи (каскады) - комбо будет расти автоматически
   await processMatchesAsync()
 }
 
@@ -766,7 +670,6 @@ async function processMatchesAsync(){
 async function dropWithDelay(baseDelay = 150){
   let changed = false
   
-  // 🔧 FIX: При gravity специальные плитки падают как обычные, но не удаляются
   for(let x=0; x<SIZE; x++){
     let emptySpaces = 0
     
@@ -1021,11 +924,24 @@ function delay(ms){
 function updateHUD(){
   document.getElementById("movesDisplay").innerText = `Ходы: ${movesLeft}`
   
-  if(levelData.type === "score"){
-    document.getElementById("targetDisplay").innerText = `Цель: ${score} / ${levelData.target}`
-  } else if(levelData.type === "collect"){
-    const colorNames = levelData.colors.join(" + ")
-    document.getElementById("targetDisplay").innerText = `Собрать ${colorNames}: ${collected} / ${levelData.target}`
+  const targetDisplay = document.getElementById("targetDisplay")
+  if (!targetDisplay) return
+  
+  targetDisplay.innerHTML = ""
+  
+  if (levelData.colors) {
+    levelData.colors.forEach(color => {
+      const progress = collectProgress[color] || 0
+      
+      const chip = document.createElement("span")
+      chip.className = "target-chip"
+      
+      chip.innerHTML = `
+        <span class="color-dot" style="background:${color}"></span>
+        <span class="target-counter">${progress}/${levelData.target}</span>
+      `
+      targetDisplay.appendChild(chip)
+    })
   }
 }
 
@@ -1038,7 +954,7 @@ function initCollectTracker() {
 
   tracker.innerHTML = ""
 
-  if (levelData.type !== "collect" || !levelData.colors) return
+  if (!levelData.colors) return
 
   collectProgress = {}
 
@@ -1050,11 +966,15 @@ function initCollectTracker() {
     item.id = `collect-${color}`
 
     item.innerHTML = `
-      <span class="color-dot" style="background:${color}"></span>
-      <span class="counter">
-        <span class="done">0</span>
-        <span class="total">/${levelData.target}</span>
-      </span>
+      <span class="color-dot large" style="background:${color}"></span>
+      <div class="collect-info">
+        <div class="progress-bar-container">
+          <div class="progress-bar-fill" id="progress-${color}" style="width:0%; background:${color}"></div>
+        </div>
+        <div class="collect-counter">
+          <span class="done">0</span>/<span class="total">${levelData.target}</span>
+        </div>
+      </div>
     `
 
     tracker.appendChild(item)
@@ -1065,18 +985,25 @@ function updateCollectTracker(color) {
   const item = document.getElementById(`collect-${color}`)
   if (!item) return
 
-  const done = item.querySelector(".done")
   const current = collectProgress[color] || 0
+  const percentage = Math.min((current / levelData.target) * 100, 100)
 
-  done.textContent = current
+  const done = item.querySelector(".done")
+  if (done) done.textContent = current
+
+  const progressBar = document.getElementById(`progress-${color}`)
+  if (progressBar) progressBar.style.width = percentage + "%"
 
   if (current > 0) {
     item.classList.add("collected")
   }
 
-  // Анимация пульса при изменении
+  if (current >= levelData.target) {
+    item.classList.add("complete")
+  }
+
   item.classList.remove("pulse")
-  void item.offsetWidth // reflow
+  void item.offsetWidth
   item.classList.add("pulse")
 }
 
@@ -1086,12 +1013,7 @@ function updateCollectTracker(color) {
 function checkWin(){
   if(levelFinished) return
   
-  if(levelData.type === "score" && score >= levelData.target){
-    winLevel()
-    return
-  }
-  
-  if(levelData.type === "collect" && collected >= levelData.target){
+  if (collected >= levelData.target){
     winLevel()
     return
   }
@@ -1111,7 +1033,6 @@ function winLevel(){
   gameLocked = true
   isAnimating = false
   
-  // Сохраняем прогресс уровня
   completeLevel(currentLevel)
   
   animateCoins()
