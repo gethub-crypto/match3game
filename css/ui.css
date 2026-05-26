@@ -389,3 +389,140 @@ z-index:10000;
     font-size: 30px;
   }
   }
+
+/* ================= ЦЕЛИ В HUD ================= */
+#targetDisplay {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.target-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: #2a2a2a;
+  border-radius: 6px;
+  padding: 4px 10px;
+}
+
+.target-chip .color-dot {
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+}
+
+.target-counter {
+  color: #fff;
+  font-weight: bold;
+  font-size: 15px;
+}
+
+/* ================= ТРЕКЕР КОЛЛЕКЦИИ ================= */
+#collectTracker {
+  display: flex;
+  justify-content: center;
+  gap: 15px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+
+.collect-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #2a2a2a;
+  border: 2px solid #444;
+  border-radius: 10px;
+  padding: 8px 15px;
+  transition: all 0.3s;
+}
+
+.collect-item.collected {
+  border-color: #FFD700;
+}
+
+.collect-item.complete {
+  border-color: #00FF00;
+  background: #1a3a1a;
+}
+
+.color-dot.large {
+  width: 30px;
+  height: 30px;
+  border-radius: 4px;
+  box-shadow: 0 0 8px rgba(255,255,255,0.2);
+}
+
+.collect-info {
+  text-align: center;
+}
+
+.collect-counter {
+  font-size: 14px;
+  color: #fff;
+  font-weight: bold;
+  margin-top: 4px;
+}
+
+.done {
+  color: #FFD700;
+}
+
+.total {
+  color: #888;
+}
+
+/* ================= ПРОГРЕСС-БАР ================= */
+.progress-bar-container {
+  width: 80px;
+  height: 8px;
+  background: #444;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.4s ease;
+}
+
+/* ================= АНИМАЦИЯ ПУЛЬСА ================= */
+.collect-item.pulse {
+  animation: collectPulse 0.4s ease;
+}
+
+@keyframes collectPulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.15); background: #4a4a00; }
+  100% { transform: scale(1); }
+}
+
+/* ================= КАРТА УРОВНЕЙ ================= */
+#levelGrid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
+  max-width: 400px;
+  margin: 0 auto;
+}
+
+.level-btn {
+  width: 60px;
+  height: 60px;
+  border-radius: 10px;
+  font-size: 20px;
+  font-weight: bold;
+  cursor: pointer;
+  border: 2px solid #555;
+  transition: 0.2s;
+}
+
+.level-btn.unlocked { background: #4CAF50; color: white; }
+.level-btn.completed { background: #FFD700; color: #333; border-color: #FFA000; }
+.level-btn.locked   { background: #666; color: #999; cursor: not-allowed; }
+
+.level-btn.unlocked:hover { transform: scale(1.1); }
