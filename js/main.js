@@ -4,7 +4,6 @@ let currentLevel = 1
 let levelData = null
 
 let movesLeft = 0
-let collected = 0
 let collectProgress = {}
 
 let levelFinished = false
@@ -158,7 +157,6 @@ function initLevel(){
 
 function startGameplay(){
   movesLeft = levelData.moves
-  collected = 0
   updateHUD()
 }
 
@@ -625,7 +623,6 @@ async function processMatchesAsync(){
           const totalCollected = 1 + comboBonus
           
           collectProgress[cellColor] = (collectProgress[cellColor] || 0) + totalCollected
-          collected += totalCollected
           updateCollectTracker(cellColor)
           
           if (comboBonus > 0) {
@@ -946,7 +943,7 @@ function updateHUD(){
 }
 
 
-// ================= COLLECT TRACKER =================
+// ================= COLLECT TRACKER (упрощённый, без прогресс-бара) =================
 
 function initCollectTracker() {
   const tracker = document.getElementById("collectTracker")
@@ -967,14 +964,9 @@ function initCollectTracker() {
 
     item.innerHTML = `
       <span class="color-dot large" style="background:${color}"></span>
-      <div class="collect-info">
-        <div class="progress-bar-container">
-          <div class="progress-bar-fill" id="progress-${color}" style="width:0%; background:${color}"></div>
-        </div>
-        <div class="collect-counter">
-          <span class="done">0</span>/<span class="total">${levelData.target}</span>
-        </div>
-      </div>
+      <span class="collect-counter">
+        <span class="done">0</span>/<span class="total">${levelData.target}</span>
+      </span>
     `
 
     tracker.appendChild(item)
@@ -986,13 +978,9 @@ function updateCollectTracker(color) {
   if (!item) return
 
   const current = collectProgress[color] || 0
-  const percentage = Math.min((current / levelData.target) * 100, 100)
 
   const done = item.querySelector(".done")
   if (done) done.textContent = current
-
-  const progressBar = document.getElementById(`progress-${color}`)
-  if (progressBar) progressBar.style.width = percentage + "%"
 
   if (current > 0) {
     item.classList.add("collected")
@@ -1008,12 +996,17 @@ function updateCollectTracker(color) {
 }
 
 
-// ================= WIN CHECK =================
+// ================= WIN CHECK (исправлена логика для нескольких цветов) =================
 
 function checkWin(){
   if(levelFinished) return
   
-  if (collected >= levelData.target){
+  // Проверяем, что для каждого нужного цвета собрано не меньше target
+  const allColorsComplete = levelData.colors.every(color => {
+    return (collectProgress[color] || 0) >= levelData.target
+  })
+  
+  if (allColorsComplete) {
     winLevel()
     return
   }
