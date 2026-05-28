@@ -448,16 +448,19 @@ async function onCellClick(x, y){
   renderBoard()
   await delay(200)
   
+  // Определяем направление свайпа
+  const swipeDir = (a.x !== b.x) ? 'horizontal' : 'vertical'
+  
   let hasSpecialActivated = false
   
   if(board[b.y][b.x] && typeof board[b.y][b.x] === "object" && board[b.y][b.x] !== null && board[b.y][b.x].special){
-    await Specials.activateWithDelay(b.x, b.y)
+    await Specials.activateWithDelay(b.x, b.y, null, swipeDir)
     board[b.y][b.x] = null
     hasSpecialActivated = true
   }
   
   if(!hasSpecialActivated && board[a.y][a.x] && typeof board[a.y][a.x] === "object" && board[a.y][a.x] !== null && board[a.y][a.x].special){
-    await Specials.activateWithDelay(a.x, a.y)
+    await Specials.activateWithDelay(a.x, a.y, null, swipeDir)
     board[a.y][a.x] = null
     hasSpecialActivated = true
   }
@@ -943,7 +946,7 @@ function updateHUD(){
 }
 
 
-// ================= COLLECT TRACKER (упрощённый, без прогресс-бара) =================
+// ================= COLLECT TRACKER =================
 
 function initCollectTracker() {
   const tracker = document.getElementById("collectTracker")
@@ -996,12 +999,11 @@ function updateCollectTracker(color) {
 }
 
 
-// ================= WIN CHECK (исправлена логика для нескольких цветов) =================
+// ================= WIN CHECK =================
 
 function checkWin(){
   if(levelFinished) return
   
-  // Проверяем, что для каждого нужного цвета собрано не меньше target
   const allColorsComplete = levelData.colors.every(color => {
     return (collectProgress[color] || 0) >= levelData.target
   })
