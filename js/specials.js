@@ -12,6 +12,32 @@ const Specials = {
     return new Promise(resolve => setTimeout(resolve, ms))
   },
 
+  // ===== СБОР ФИШКИ (вызывается перед удалением) =====
+  collectCell(x, y) {
+    const cell = board[y]?.[x]
+    if (!cell) return
+    
+    let cellColor = null
+    
+    if (typeof cell === "string") {
+      cellColor = cell
+    } else if (typeof cell === "object" && cell !== null && cell.color) {
+      cellColor = cell.color
+    }
+    
+    if (cellColor && levelData.colors && levelData.colors.includes(cellColor)) {
+      const comboBonus = ComboManager.isActive() ? ComboManager.combo : 0
+      const total = 1 + comboBonus
+      
+      collectProgress[cellColor] = (collectProgress[cellColor] || 0) + total
+      updateCollectTracker(cellColor)
+      
+      if (comboBonus > 0) {
+        console.log(`🔥 Combo x${comboBonus + 1}! +${total} ${cellColor} chips (special)`)
+      }
+    }
+  },
+
   // ===== АКТИВАЦИЯ СПЕЦА С ЗАДЕРЖКОЙ =====
   async activateWithDelay(x, y, color = null){
     const cell = board[y]?.[x]
@@ -29,6 +55,8 @@ const Specials = {
     await this.showSpecialEffect(x, y, specialType)
     await this.delay(400)
     
+    // Собираем саму спец-фишку если она нужного цвета
+    this.collectCell(x, y)
     board[y][x] = null
     
     const map = {
@@ -120,6 +148,12 @@ const Specials = {
     
     await this.delay(350)
     
+    // Собираем фишки перед удалением
+    for(let i=0; i<SIZE; i++){
+      if(board[y] && board[y][i]) this.collectCell(i, y)
+      if(board[i] && board[i][x]) this.collectCell(x, i)
+    }
+    
     for(let i=0; i<SIZE; i++){
       if(board[y] && board[y][i]) board[y][i] = null
       if(board[i] && board[i][x]) board[i][x] = null
@@ -176,6 +210,15 @@ const Specials = {
     }
     
     await this.delay(200)
+    
+    // Собираем фишки перед удалением
+    for(let yy=y-1; yy<=y+1; yy++){
+      for(let xx=x-1; xx<=x+1; xx++){
+        if(xx>=0 && yy>=0 && xx<SIZE && yy<SIZE){
+          this.collectCell(xx, yy)
+        }
+      }
+    }
     
     for(let yy=y-1; yy<=y+1; yy++){
       for(let xx=x-1; xx<=x+1; xx++){
@@ -270,6 +313,20 @@ const Specials = {
     
     await this.delay(400)
     
+    // Собираем фишки перед удалением
+    for(let yy=0; yy<SIZE; yy++){
+      for(let xx=0; xx<SIZE; xx++){
+        const cell = board[yy]?.[xx]
+        
+        if(typeof cell === "string" && cell === targetColor){
+          this.collectCell(xx, yy)
+        }
+        else if(typeof cell === "object" && cell !== null && cell.color === targetColor){
+          this.collectCell(xx, yy)
+        }
+      }
+    }
+    
     for(let yy=0; yy<SIZE; yy++){
       for(let xx=0; xx<SIZE; xx++){
         const cell = board[yy]?.[xx]
@@ -299,6 +356,7 @@ const Specials = {
     if(!specialType && cell.type === "special") specialType = cell.special
     if(!specialType) return
     
+    this.collectCell(x, y)
     board[y][x] = null
     
     const map = {
@@ -314,12 +372,25 @@ const Specials = {
 
   rocket(x, y){
     for(let i=0; i<SIZE; i++){
+      if(board[y] && board[y][i]) this.collectCell(i, y)
+      if(board[i] && board[i][x]) this.collectCell(x, i)
+    }
+    
+    for(let i=0; i<SIZE; i++){
       if(board[y] && board[y][i]) board[y][i] = null
       if(board[i] && board[i][x]) board[i][x] = null
     }
   },
 
   bomb(x, y){
+    for(let yy=y-1; yy<=y+1; yy++){
+      for(let xx=x-1; xx<=x+1; xx++){
+        if(xx>=0 && yy>=0 && xx<SIZE && yy<SIZE){
+          this.collectCell(xx, yy)
+        }
+      }
+    }
+    
     for(let yy=y-1; yy<=y+1; yy++){
       for(let xx=x-1; xx<=x+1; xx++){
         if(xx>=0 && yy>=0 && xx<SIZE && yy<SIZE){
@@ -356,6 +427,19 @@ const Specials = {
         const cell = board[yy]?.[xx]
         
         if(typeof cell === "string" && cell === targetColor){
+          this.collectCell(xx, yy)
+        }
+        else if(typeof cell === "object" && cell !== null && cell.color === targetColor){
+          this.collectCell(xx, yy)
+        }
+      }
+    }
+    
+    for(let yy=0; yy<SIZE; yy++){
+      for(let xx=0; xx<SIZE; xx++){
+        const cell = board[yy]?.[xx]
+        
+        if(typeof cell === "string" && cell === targetColor){
           board[yy][xx] = null
         }
         else if(typeof cell === "object" && cell !== null && cell.color === targetColor){
@@ -364,4 +448,4 @@ const Specials = {
       }
     }
   }
-      }
+}
