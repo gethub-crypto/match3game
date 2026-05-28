@@ -39,7 +39,7 @@ const Specials = {
   },
 
   // ===== АКТИВАЦИЯ СПЕЦА С ЗАДЕРЖКОЙ =====
-  async activateWithDelay(x, y, color = null){
+  async activateWithDelay(x, y, color = null, direction = null){
     const cell = board[y]?.[x]
     
     if(!cell) return
@@ -66,7 +66,7 @@ const Specials = {
     }
     
     if(map[specialType]){
-      await map[specialType].call(this, x, y, color || cell.color)
+      await map[specialType].call(this, x, y, color || cell.color, direction)
     }
   },
   
@@ -119,44 +119,75 @@ const Specials = {
   },
 
   // ===== РАКЕТА С ЗАДЕРЖКОЙ =====
-  async rocketWithDelay(x, y){
-    for(let i=0; i<SIZE; i++){
-      if(cells[y] && cells[y][i]) {
-        cells[y][i].classList.remove("rocketLine", "matchFlash")
+  async rocketWithDelay(x, y, color = null, direction = null){
+    // Если направление не указано (две ракеты) — бьём крестом
+    const horizontal = !direction || direction === 'horizontal'
+    const vertical = !direction || direction === 'vertical'
+    
+    // Убираем старые подсветки
+    if(horizontal){
+      for(let i=0; i<SIZE; i++){
+        if(cells[y] && cells[y][i]) {
+          cells[y][i].classList.remove("rocketLine", "matchFlash")
+        }
       }
-      if(cells[i] && cells[i][x]) {
-        cells[i][x].classList.remove("rocketLine", "matchFlash")
+    }
+    if(vertical){
+      for(let i=0; i<SIZE; i++){
+        if(cells[i] && cells[i][x]) {
+          cells[i][x].classList.remove("rocketLine", "matchFlash")
+        }
       }
     }
     
     void document.body.offsetHeight
     
-    for(let i=0; i<SIZE; i++){
-      if(cells[y] && cells[y][i]){
-        cells[y][i].classList.add("rocketLine")
-        setTimeout(() => {
-          if(cells[y] && cells[y][i]) cells[y][i].classList.remove("rocketLine")
-        }, 400)
+    // Подсветка
+    if(horizontal){
+      for(let i=0; i<SIZE; i++){
+        if(cells[y] && cells[y][i]){
+          cells[y][i].classList.add("rocketLine")
+          setTimeout(() => {
+            if(cells[y] && cells[y][i]) cells[y][i].classList.remove("rocketLine")
+          }, 400)
+        }
       }
-      if(cells[i] && cells[i][x]){
-        cells[i][x].classList.add("rocketLine")
-        setTimeout(() => {
-          if(cells[i] && cells[i][x]) cells[i][x].classList.remove("rocketLine")
-        }, 400)
+    }
+    if(vertical){
+      for(let i=0; i<SIZE; i++){
+        if(cells[i] && cells[i][x]){
+          cells[i][x].classList.add("rocketLine")
+          setTimeout(() => {
+            if(cells[i] && cells[i][x]) cells[i][x].classList.remove("rocketLine")
+          }, 400)
+        }
       }
     }
     
     await this.delay(350)
     
     // Собираем фишки перед удалением
-    for(let i=0; i<SIZE; i++){
-      if(board[y] && board[y][i]) this.collectCell(i, y)
-      if(board[i] && board[i][x]) this.collectCell(x, i)
+    if(horizontal){
+      for(let i=0; i<SIZE; i++){
+        if(board[y] && board[y][i]) this.collectCell(i, y)
+      }
+    }
+    if(vertical){
+      for(let i=0; i<SIZE; i++){
+        if(board[i] && board[i][x]) this.collectCell(x, i)
+      }
     }
     
-    for(let i=0; i<SIZE; i++){
-      if(board[y] && board[y][i]) board[y][i] = null
-      if(board[i] && board[i][x]) board[i][x] = null
+    // Удаляем
+    if(horizontal){
+      for(let i=0; i<SIZE; i++){
+        if(board[y] && board[y][i]) board[y][i] = null
+      }
+    }
+    if(vertical){
+      for(let i=0; i<SIZE; i++){
+        if(board[i] && board[i][x]) board[i][x] = null
+      }
     }
     
     renderBoard()
@@ -345,7 +376,7 @@ const Specials = {
   },
 
   // ===== ОРИГИНАЛЬНЫЕ МЕТОДЫ (для обратной совместимости) =====
-  activate(x, y, color = null){
+  activate(x, y, color = null, direction = null){
     const cell = board[y]?.[x]
     if(!cell) return
     
@@ -366,19 +397,34 @@ const Specials = {
     }
     
     if(map[specialType]){
-      map[specialType].call(this, x, y, color || cell.color)
+      map[specialType].call(this, x, y, color || cell.color, direction)
     }
   },
 
-  rocket(x, y){
-    for(let i=0; i<SIZE; i++){
-      if(board[y] && board[y][i]) this.collectCell(i, y)
-      if(board[i] && board[i][x]) this.collectCell(x, i)
+  rocket(x, y, color = null, direction = null){
+    const horizontal = !direction || direction === 'horizontal'
+    const vertical = !direction || direction === 'vertical'
+    
+    if(horizontal){
+      for(let i=0; i<SIZE; i++){
+        if(board[y] && board[y][i]) this.collectCell(i, y)
+      }
+    }
+    if(vertical){
+      for(let i=0; i<SIZE; i++){
+        if(board[i] && board[i][x]) this.collectCell(x, i)
+      }
     }
     
-    for(let i=0; i<SIZE; i++){
-      if(board[y] && board[y][i]) board[y][i] = null
-      if(board[i] && board[i][x]) board[i][x] = null
+    if(horizontal){
+      for(let i=0; i<SIZE; i++){
+        if(board[y] && board[y][i]) board[y][i] = null
+      }
+    }
+    if(vertical){
+      for(let i=0; i<SIZE; i++){
+        if(board[i] && board[i][x]) board[i][x] = null
+      }
     }
   },
 
