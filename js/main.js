@@ -439,39 +439,46 @@ async function onCellClick(x, y){
   clearHighlight()
   selected = null
   
+  // Сохраняем значения ДО swap
   const A = board[a.y][a.x]
   const B = board[b.y][b.x]
   
+  // Определяем направление свайпа
+  const swipeDir = (a.x !== b.x) ? 'horizontal' : 'vertical'
+  
+  // Определяем типы спец-фишек ДО swap
+  const specA = (A && typeof A === "object" && A.special) ? A.special : null
+  const specB = (B && typeof B === "object" && B.special) ? B.special : null
+  
+  console.log(`🔍 Swap: A(${a.x},${a.y})=${specA || 'normal'} ↔ B(${b.x},${b.y})=${specB || 'normal'} dir=${swipeDir}`)
+  
+  // Выполняем swap
   board[a.y][a.x] = B
   board[b.y][b.x] = A
   
   renderBoard()
   await delay(200)
   
-  // Определяем направление свайпа
-  const swipeDir = (a.x !== b.x) ? 'horizontal' : 'vertical'
-  
-  // Определяем типы спец-фишек для комбо
-  const specA = (A && typeof A === "object" && A.special) ? A.special : null
-  const specB = (B && typeof B === "object" && B.special) ? B.special : null
-  
   let hasSpecialActivated = false
   
-  // Если обе фишки — спец-комбинации, обрабатываем вместе
+  // Если обе фишки — спец-комбинации
   if (specA && specB) {
+    console.log(`💥 Double special: ${specA}+${specB}`)
     await Specials.activateCombo(a.x, a.y, b.x, b.y, specA, specB, swipeDir)
     board[a.y][a.x] = null
     board[b.y][b.x] = null
     hasSpecialActivated = true
   }
-  // Если только B — спец
-  else if (specB) {
+  // Если только на позиции B спец (свайпнули обычную на спец)
+  else if (specB && !specA) {
+    console.log(`🚀 Single special at B(${b.x},${b.y}): ${specB}`)
     await Specials.activateWithDelay(b.x, b.y, null, swipeDir)
     board[b.y][b.x] = null
     hasSpecialActivated = true
   }
-  // Если только A — спец (свайпнули спец на обычную)
-  else if (specA) {
+  // Если только на позиции A спец (свайпнули спец на обычную)
+  else if (specA && !specB) {
+    console.log(`🚀 Single special at A(${a.x},${a.y}): ${specA}`)
     await Specials.activateWithDelay(a.x, a.y, null, swipeDir)
     board[a.y][a.x] = null
     hasSpecialActivated = true
@@ -496,9 +503,11 @@ async function onCellClick(x, y){
     return
   }
   
+  // Проверяем обычные матчи
   let matches = MatchDetection.getMatches(board)
   
   if(matches.length === 0){
+    // Откатываем swap
     board[a.y][a.x] = A
     board[b.y][b.x] = B
     renderBoard()
