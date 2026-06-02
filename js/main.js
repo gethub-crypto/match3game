@@ -451,15 +451,27 @@ async function onCellClick(x, y){
   // Определяем направление свайпа
   const swipeDir = (a.x !== b.x) ? 'horizontal' : 'vertical'
   
+  // Определяем типы спец-фишек для комбо
+  const specA = (A && typeof A === "object" && A.special) ? A.special : null
+  const specB = (B && typeof B === "object" && B.special) ? B.special : null
+  
   let hasSpecialActivated = false
   
-  if(board[b.y][b.x] && typeof board[b.y][b.x] === "object" && board[b.y][b.x] !== null && board[b.y][b.x].special){
+  // Если обе фишки — спец-комбинации, обрабатываем вместе
+  if (specA && specB) {
+    await Specials.activateCombo(a.x, a.y, b.x, b.y, specA, specB, swipeDir)
+    board[a.y][a.x] = null
+    board[b.y][b.x] = null
+    hasSpecialActivated = true
+  }
+  // Если только B — спец
+  else if (specB) {
     await Specials.activateWithDelay(b.x, b.y, null, swipeDir)
     board[b.y][b.x] = null
     hasSpecialActivated = true
   }
-  
-  if(!hasSpecialActivated && board[a.y][a.x] && typeof board[a.y][a.x] === "object" && board[a.y][a.x] !== null && board[a.y][a.x].special){
+  // Если только A — спец (свайпнули спец на обычную)
+  else if (specA) {
     await Specials.activateWithDelay(a.x, a.y, null, swipeDir)
     board[a.y][a.x] = null
     hasSpecialActivated = true
