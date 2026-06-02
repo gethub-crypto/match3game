@@ -109,36 +109,33 @@ const Specials = {
   async activateCombo(x1, y1, x2, y2, spec1, spec2, direction) {
     const comboKey = [spec1, spec2].sort().join('+')
     
-    // Выбираем цвет из той фишки, которая радуга (если есть)
     let comboColor = null
     if (spec1 === "color" || spec2 === "color") {
-      // Берём цвет из не-радужной фишки, или находим доминирующий цвет на доске
       if (spec1 !== "color") {
         comboColor = this.getCellColor(x1, y1)
       } else if (spec2 !== "color") {
         comboColor = this.getCellColor(x2, y2)
-      } else {
-        // Обе радуги — очистка всего поля, цвет не важен
       }
     }
 
     // Ракета + Ракета (крест)
     if (comboKey === "rocket+rocket") {
-      await this.rocketWithDelay(x1, y1, null, null) // null = крест
+      await this.showComboEffect(x1, y1, x2, y2, "rocket-rocket")
+      await this.rocketWithDelay(x1, y1, null, null)
     }
     
     // Ракета + Бомба
     else if (comboKey === "bomb+rocket") {
       await this.showComboEffect(x1, y1, x2, y2, "rocket-bomb")
       await this.rocketWithDelay(x1, y1, null, direction)
+      await this.delay(200)
       await this.bombWithDelay(x2, y2)
     }
     
     // Ракета + Радуга
     else if (comboKey === "color+rocket") {
-      if (!comboColor) comboColor = this.getCellColor(x2, y2)
+      if (!comboColor) comboColor = this.getCellColor(x1, y1)
       await this.showComboEffect(x1, y1, x2, y2, "rainbow-rocket")
-      // Превращаем все фишки выбранного цвета в ракеты и активируем
       await this.rainbowToRockets(comboColor)
     }
     
@@ -153,23 +150,20 @@ const Specials = {
     
     // Бомба + Радуга
     else if (comboKey === "bomb+color") {
-      if (!comboColor) comboColor = this.getCellColor(x2, y2)
+      if (!comboColor) comboColor = this.getCellColor(x1, y1)
       await this.showComboEffect(x1, y1, x2, y2, "rainbow-bomb")
-      // Превращаем все фишки выбранного цвета в бомбы и взрываем
       await this.rainbowToBombs(comboColor)
     }
     
     // Радуга + Радуга
     else if (comboKey === "color+color") {
       await this.showComboEffect(x1, y1, x2, y2, "rainbow-rainbow")
-      // Очищаем всё поле
       await this.clearAllBoard()
     }
   },
 
   // ===== ВИЗУАЛЬНЫЙ ЭФФЕКТ КОМБО =====
   async showComboEffect(x1, y1, x2, y2, comboType) {
-    // Вспышка на обеих клетках
     const el1 = cells[y1]?.[x1]
     const el2 = cells[y2]?.[x2]
     
@@ -202,7 +196,6 @@ const Specials = {
   async rainbowToRockets(targetColor) {
     const rocketPositions = []
     
-    // Собираем и удаляем фишки цвета, запоминаем позиции для ракет
     for (let yy = 0; yy < SIZE; yy++) {
       for (let xx = 0; xx < SIZE; xx++) {
         if (this.getCellColor(xx, yy) === targetColor) {
@@ -213,7 +206,6 @@ const Specials = {
       }
     }
     
-    // Ставим ракеты на места удалённых фишек
     rocketPositions.forEach(pos => {
       board[pos.y][pos.x] = {
         color: targetColor,
@@ -225,11 +217,10 @@ const Specials = {
     renderBoard()
     await this.delay(300)
     
-    // Активируем каждую ракету (рандомное направление для хаоса)
     for (const pos of rocketPositions) {
       if (board[pos.y]?.[pos.x]?.special === "rocket") {
-        const dir = Math.random() < 0.5 ? 'horizontal' : 'vertical'
         board[pos.y][pos.x] = null
+        const dir = Math.random() < 0.5 ? 'horizontal' : 'vertical'
         await this.rocketWithDelay(pos.x, pos.y, null, dir)
       }
     }
@@ -239,7 +230,6 @@ const Specials = {
   async rainbowToBombs(targetColor) {
     const bombPositions = []
     
-    // Собираем и удаляем фишки цвета, запоминаем позиции для бомб
     for (let yy = 0; yy < SIZE; yy++) {
       for (let xx = 0; xx < SIZE; xx++) {
         if (this.getCellColor(xx, yy) === targetColor) {
@@ -250,7 +240,6 @@ const Specials = {
       }
     }
     
-    // Ставим бомбы на места удалённых фишек
     bombPositions.forEach(pos => {
       board[pos.y][pos.x] = {
         color: targetColor,
@@ -262,12 +251,10 @@ const Specials = {
     renderBoard()
     await this.delay(300)
     
-    // Взрываем все бомбы одновременно
     const explosionRadius = []
     for (const pos of bombPositions) {
       if (board[pos.y]?.[pos.x]?.special === "bomb") {
         board[pos.y][pos.x] = null
-        // Собираем область взрыва
         for (let dy = -1; dy <= 1; dy++) {
           for (let dx = -1; dx <= 1; dx++) {
             const nx = pos.x + dx
@@ -282,7 +269,6 @@ const Specials = {
       }
     }
     
-    // Визуальный эффект для всех клеток
     explosionRadius.forEach(pos => {
       const el = cells[pos.y]?.[pos.x]
       if (el) {
@@ -293,7 +279,6 @@ const Specials = {
     
     await this.delay(200)
     
-    // Собираем и удаляем
     explosionRadius.forEach(pos => this.safeRemove(pos.x, pos.y))
     
     renderBoard()
@@ -302,7 +287,6 @@ const Specials = {
 
   // ===== МЕГА-БОМБА (5×5) =====
   async megaBomb(x, y) {
-    // Подсветка
     for (let dy = -2; dy <= 2; dy++) {
       for (let dx = -2; dx <= 2; dx++) {
         const nx = x + dx
@@ -316,7 +300,6 @@ const Specials = {
       }
     }
     
-    // Ядро
     const centerEl = cells[y]?.[x]
     if (centerEl) {
       centerEl.classList.add("bombCore")
@@ -325,7 +308,6 @@ const Specials = {
     
     await this.delay(300)
     
-    // Собираем и удаляем
     for (let dy = -2; dy <= 2; dy++) {
       for (let dx = -2; dx <= 2; dx++) {
         this.safeRemove(x + dx, y + dy)
@@ -385,72 +367,14 @@ const Specials = {
     this.collectCell(x, y)
     board[y][x] = null
     
-    // Проверяем, не попала ли ракета/бомба на другую спец-фишку
-    // (автоактивация при попадании ракеты в бомбу/радугу)
-    if (specialType === "rocket" && direction) {
-      await this.rocketWithChainCheck(x, y, direction)
-    } else {
-      const map = {
-        rocket: this.rocketWithDelay,
-        bomb: this.bombWithDelay,
-        color: this.colorBombWithDelay
-      }
-      
-      if(map[specialType]){
-        await map[specialType].call(this, x, y, color || cell.color, direction)
-      }
-    }
-  },
-
-  // ===== РАКЕТА С ПРОВЕРКОЙ НА ЦЕПОЧКУ =====
-  async rocketWithChainCheck(x, y, direction) {
-    const horizontal = direction === 'horizontal'
-    const cellsToCheck = []
-    
-    // Собираем все клетки на линии
-    for (let i = 0; i < SIZE; i++) {
-      const cx = horizontal ? i : x
-      const cy = horizontal ? y : i
-      if (cx !== x || cy !== y) {
-        cellsToCheck.push({x: cx, y: cy})
-      }
+    const map = {
+      rocket: this.rocketWithDelay,
+      bomb: this.bombWithDelay,
+      color: this.colorBombWithDelay
     }
     
-    // Подсветка
-    for (const pos of cellsToCheck) {
-      const el = cells[pos.y]?.[pos.x]
-      if (el) {
-        el.classList.add("rocketLine")
-        setTimeout(() => el.classList.remove("rocketLine"), 400)
-      }
-    }
-    
-    await this.delay(300)
-    
-    // Проверяем на спец-фишки на пути и собираем
-    const foundSpecials = []
-    for (const pos of cellsToCheck) {
-      this.collectCell(pos.x, pos.y)
-      const cell = board[pos.y]?.[pos.x]
-      if (cell && typeof cell === "object" && cell.special) {
-        foundSpecials.push({x: pos.x, y: pos.y, spec: cell.special})
-      }
-      board[pos.y][pos.x] = null
-    }
-    
-    renderBoard()
-    await this.delay(150)
-    
-    // Активируем найденные спец-фишки
-    for (const fs of foundSpecials) {
-      const map = {
-        bomb: this.bombWithDelay,
-        color: this.colorBombWithDelay,
-        rocket: this.rocketWithDelay
-      }
-      if (map[fs.spec]) {
-        await map[fs.spec].call(this, fs.x, fs.y)
-      }
+    if(map[specialType]){
+      await map[specialType].call(this, x, y, color || cell.color, direction)
     }
   },
   
