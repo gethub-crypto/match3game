@@ -38,14 +38,6 @@ const Specials = {
     }
   },
 
-  // ===== БЕЗОПАСНОЕ УДАЛЕНИЕ =====
-  safeRemove(x, y) {
-    if (x >= 0 && y >= 0 && x < SIZE && y < SIZE && board[y] && board[y][x] !== undefined) {
-      this.collectCell(x, y)
-      board[y][x] = null
-    }
-  },
-
   // ===== ПОЛУЧИТЬ ЦВЕТ КЛЕТКИ =====
   getCellColor(x, y) {
     const cell = board[y]?.[x]
@@ -53,28 +45,6 @@ const Specials = {
     if (typeof cell === "string") return cell
     if (typeof cell === "object" && cell !== null) return cell.color
     return null
-  },
-
-  // ===== СОБРАТЬ ВСЕ КЛЕТКИ ОПРЕДЕЛЁННОГО ЦВЕТА =====
-  collectAllOfColor(targetColor) {
-    for (let yy = 0; yy < SIZE; yy++) {
-      for (let xx = 0; xx < SIZE; xx++) {
-        if (this.getCellColor(xx, yy) === targetColor) {
-          this.collectCell(xx, yy)
-        }
-      }
-    }
-  },
-
-  // ===== УДАЛИТЬ ВСЕ КЛЕТКИ ОПРЕДЕЛЁННОГО ЦВЕТА =====
-  removeAllOfColor(targetColor) {
-    for (let yy = 0; yy < SIZE; yy++) {
-      for (let xx = 0; xx < SIZE; xx++) {
-        if (this.getCellColor(xx, yy) === targetColor) {
-          board[yy][xx] = null
-        }
-      }
-    }
   },
 
   // ===== НАЙТИ СЛУЧАЙНУЮ ПУСТУЮ КЛЕТКУ =====
@@ -104,66 +74,63 @@ const Specials = {
   },
 
   // =====================================================
-  // ===== ГЛАВНАЯ АКТИВАЦИЯ КОМБО ДВУХ СПЕЦ-ФИШЕК =====
+  // ===== ДВОЙНЫЕ КОМБИНАЦИИ =====
   // =====================================================
   async activateCombo(x1, y1, x2, y2, spec1, spec2, direction) {
     const comboKey = [spec1, spec2].sort().join('+')
     
     let comboColor = null
     if (spec1 === "color" || spec2 === "color") {
-      if (spec1 !== "color") {
-        comboColor = this.getCellColor(x1, y1)
-      } else if (spec2 !== "color") {
-        comboColor = this.getCellColor(x2, y2)
-      }
+      if (spec1 !== "color") comboColor = this.getCellColor(x1, y1)
+      else if (spec2 !== "color") comboColor = this.getCellColor(x2, y2)
     }
 
-    // Ракета + Ракета (крест)
+    // 🚀+🚀 Ракета + Ракета = крест
     if (comboKey === "rocket+rocket") {
-      await this.showComboEffect(x1, y1, x2, y2, "rocket-rocket")
+      await this.showComboEffect(x1, y1, x2, y2)
       await this.rocketWithDelay(x1, y1, null, null)
     }
     
-    // Ракета + Бомба
+    // 🚀+💣 Ракета + Бомба
     else if (comboKey === "bomb+rocket") {
-      await this.showComboEffect(x1, y1, x2, y2, "rocket-bomb")
+      await this.showComboEffect(x1, y1, x2, y2)
       await this.rocketWithDelay(x1, y1, null, direction)
       await this.delay(200)
       await this.bombWithDelay(x2, y2)
     }
     
-    // Ракета + Радуга
+    // 🚀+🌈 Ракета + Радуга
     else if (comboKey === "color+rocket") {
       if (!comboColor) comboColor = this.getCellColor(x1, y1)
-      await this.showComboEffect(x1, y1, x2, y2, "rainbow-rocket")
+      await this.showComboEffect(x1, y1, x2, y2)
       await this.rainbowToRockets(comboColor)
     }
     
-    // Бомба + Бомба
+    // 💣+💣 Бомба + Бомба = мега-бомба 5×5 + ракеты
     else if (comboKey === "bomb+bomb") {
-      await this.showComboEffect(x1, y1, x2, y2, "bomb-bomb")
+      await this.showComboEffect(x1, y1, x2, y2)
       await this.megaBomb(x1, y1)
       this.spawnRockets(3)
       renderBoard()
       await this.delay(200)
     }
     
-    // Бомба + Радуга
+    // 💣+🌈 Бомба + Радуга
     else if (comboKey === "bomb+color") {
       if (!comboColor) comboColor = this.getCellColor(x1, y1)
-      await this.showComboEffect(x1, y1, x2, y2, "rainbow-bomb")
+      await this.showComboEffect(x1, y1, x2, y2)
       await this.rainbowToBombs(comboColor)
     }
     
-    // Радуга + Радуга
+    // 🌈+🌈 Радуга + Радуга = очистка всего поля
     else if (comboKey === "color+color") {
-      await this.showComboEffect(x1, y1, x2, y2, "rainbow-rainbow")
+      await this.showComboEffect(x1, y1, x2, y2)
       await this.clearAllBoard()
     }
   },
 
   // ===== ВИЗУАЛЬНЫЙ ЭФФЕКТ КОМБО =====
-  async showComboEffect(x1, y1, x2, y2, comboType) {
+  async showComboEffect(x1, y1, x2, y2) {
     const el1 = cells[y1]?.[x1]
     const el2 = cells[y2]?.[x2]
     
@@ -192,7 +159,7 @@ const Specials = {
     }
   },
 
-  // ===== РАДУГА → РАКЕТЫ =====
+  // ===== 🌈 → 🚀 =====
   async rainbowToRockets(targetColor) {
     const rocketPositions = []
     
@@ -226,7 +193,7 @@ const Specials = {
     }
   },
 
-  // ===== РАДУГА → БОМБЫ =====
+  // ===== 🌈 → 💣 =====
   async rainbowToBombs(targetColor) {
     const bombPositions = []
     
@@ -279,13 +246,18 @@ const Specials = {
     
     await this.delay(200)
     
-    explosionRadius.forEach(pos => this.safeRemove(pos.x, pos.y))
+    explosionRadius.forEach(pos => {
+      if (pos.x >= 0 && pos.y >= 0 && pos.x < SIZE && pos.y < SIZE) {
+        this.collectCell(pos.x, pos.y)
+        board[pos.y][pos.x] = null
+      }
+    })
     
     renderBoard()
     await this.delay(200)
   },
 
-  // ===== МЕГА-БОМБА (5×5) =====
+  // ===== МЕГА-БОМБА 5×5 =====
   async megaBomb(x, y) {
     for (let dy = -2; dy <= 2; dy++) {
       for (let dx = -2; dx <= 2; dx++) {
@@ -310,7 +282,12 @@ const Specials = {
     
     for (let dy = -2; dy <= 2; dy++) {
       for (let dx = -2; dx <= 2; dx++) {
-        this.safeRemove(x + dx, y + dy)
+        const nx = x + dx
+        const ny = y + dy
+        if (nx >= 0 && ny >= 0 && nx < SIZE && ny < SIZE) {
+          this.collectCell(nx, ny)
+          board[ny][nx] = null
+        }
       }
     }
     
@@ -344,9 +321,7 @@ const Specials = {
     await this.delay(200)
   },
 
-  // ===============================================
   // ===== АКТИВАЦИЯ ОДНОЙ СПЕЦ-ФИШКИ =====
-  // ===============================================
   async activateWithDelay(x, y, color = null, direction = null){
     const cell = board[y]?.[x]
     
@@ -363,7 +338,6 @@ const Specials = {
     await this.showSpecialEffect(x, y, specialType)
     await this.delay(400)
     
-    // Собираем саму спец-фишку
     this.collectCell(x, y)
     board[y][x] = null
     
@@ -572,9 +546,13 @@ const Specials = {
     if(!targetColor){
       for(let yy=0; yy<SIZE; yy++){
         for(let xx=0; xx<SIZE; xx++){
-          const cellColor = this.getCellColor(xx, yy)
-          if(cellColor){
-            targetColor = cellColor
+          const cell = board[yy]?.[xx]
+          if(typeof cell === "string"){
+            targetColor = cell
+            break
+          }
+          if(typeof cell === "object" && cell !== null && cell.color){
+            targetColor = cell.color
             break
           }
         }
@@ -605,7 +583,13 @@ const Specials = {
     const targetCells = []
     for(let yy=0; yy<SIZE; yy++){
       for(let xx=0; xx<SIZE; xx++){
-        if(this.getCellColor(xx, yy) === targetColor && cells[yy] && cells[yy][xx]){
+        const cell = board[yy]?.[xx]
+        let cellColor = null
+        
+        if(typeof cell === "string") cellColor = cell
+        else if(typeof cell === "object" && cell !== null) cellColor = cell.color
+        
+        if(cellColor === targetColor && cells[yy] && cells[yy][xx]){
           targetCells.push({x: xx, y: yy})
         }
       }
@@ -636,14 +620,37 @@ const Specials = {
     
     await this.delay(400)
     
-    this.collectAllOfColor(targetColor)
-    this.removeAllOfColor(targetColor)
+    for(let yy=0; yy<SIZE; yy++){
+      for(let xx=0; xx<SIZE; xx++){
+        const cell = board[yy]?.[xx]
+        
+        if(typeof cell === "string" && cell === targetColor){
+          this.collectCell(xx, yy)
+        }
+        else if(typeof cell === "object" && cell !== null && cell.color === targetColor){
+          this.collectCell(xx, yy)
+        }
+      }
+    }
+    
+    for(let yy=0; yy<SIZE; yy++){
+      for(let xx=0; xx<SIZE; xx++){
+        const cell = board[yy]?.[xx]
+        
+        if(typeof cell === "string" && cell === targetColor){
+          board[yy][xx] = null
+        }
+        else if(typeof cell === "object" && cell !== null && cell.color === targetColor){
+          board[yy][xx] = null
+        }
+      }
+    }
     
     renderBoard()
     await this.delay(150)
   },
 
-  // ===== СТАРЫЕ МЕТОДЫ ДЛЯ СОВМЕСТИМОСТИ =====
+  // ===== СТАРЫЕ МЕТОДЫ =====
   activate(x, y, color = null, direction = null){
     const cell = board[y]?.[x]
     if(!cell) return
@@ -720,9 +727,13 @@ const Specials = {
     if(!targetColor){
       for(let yy=0; yy<SIZE; yy++){
         for(let xx=0; xx<SIZE; xx++){
-          const cellColor = this.getCellColor(xx, yy)
-          if(cellColor){
-            targetColor = cellColor
+          const cell = board[yy]?.[xx]
+          if(typeof cell === "string"){
+            targetColor = cell
+            break
+          }
+          if(typeof cell === "object" && cell !== null && cell.color){
+            targetColor = cell.color
             break
           }
         }
@@ -732,7 +743,30 @@ const Specials = {
     
     if(!targetColor) return
     
-    this.collectAllOfColor(targetColor)
-    this.removeAllOfColor(targetColor)
+    for(let yy=0; yy<SIZE; yy++){
+      for(let xx=0; xx<SIZE; xx++){
+        const cell = board[yy]?.[xx]
+        
+        if(typeof cell === "string" && cell === targetColor){
+          this.collectCell(xx, yy)
+        }
+        else if(typeof cell === "object" && cell !== null && cell.color === targetColor){
+          this.collectCell(xx, yy)
+        }
+      }
+    }
+    
+    for(let yy=0; yy<SIZE; yy++){
+      for(let xx=0; xx<SIZE; xx++){
+        const cell = board[yy]?.[xx]
+        
+        if(typeof cell === "string" && cell === targetColor){
+          board[yy][xx] = null
+        }
+        else if(typeof cell === "object" && cell !== null && cell.color === targetColor){
+          board[yy][xx] = null
+        }
+      }
+    }
   }
 }
