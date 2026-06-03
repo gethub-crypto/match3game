@@ -439,41 +439,27 @@ async function onCellClick(x, y){
   clearHighlight()
   selected = null
   
-  // Сохраняем ДО swap
   const A = board[a.y][a.x]
   const B = board[b.y][b.x]
   
-  // Определяем направление свайпа
-  const swipeDir = (a.x !== b.x) ? 'horizontal' : 'vertical'
-  
-  // Определяем типы спец-фишек ДО swap
-  const specA = (A && typeof A === "object" && A.special) ? A.special : null
-  const specB = (B && typeof B === "object" && B.special) ? B.special : null
-  
-  // Выполняем swap
   board[a.y][a.x] = B
   board[b.y][b.x] = A
   
   renderBoard()
   await delay(200)
   
+  // Определяем направление свайпа
+  const swipeDir = (a.x !== b.x) ? 'horizontal' : 'vertical'
+  
   let hasSpecialActivated = false
   
-  // Если обе фишки — спец-комбинации
-  if (specA && specB) {
-    await Specials.activateCombo(a.x, a.y, b.x, b.y, specA, specB, swipeDir)
-    board[a.y][a.x] = null
-    board[b.y][b.x] = null
-    hasSpecialActivated = true
-  }
-  // Если только B — спец (свайпнули обычную на спец)
-  else if (specB) {
+  if(board[b.y][b.x] && typeof board[b.y][b.x] === "object" && board[b.y][b.x] !== null && board[b.y][b.x].special){
     await Specials.activateWithDelay(b.x, b.y, null, swipeDir)
     board[b.y][b.x] = null
     hasSpecialActivated = true
   }
-  // Если только A — спец (свайпнули спец на обычную)
-  else if (specA) {
+  
+  if(!hasSpecialActivated && board[a.y][a.x] && typeof board[a.y][a.x] === "object" && board[a.y][a.x] !== null && board[a.y][a.x].special){
     await Specials.activateWithDelay(a.x, a.y, null, swipeDir)
     board[a.y][a.x] = null
     hasSpecialActivated = true
