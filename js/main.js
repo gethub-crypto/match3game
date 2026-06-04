@@ -102,6 +102,432 @@ const InputManager = {
   }
 };
 
+// ================= SPECIAL COMBO MANAGER =================
+const SpecialComboManager = {
+  processedSpecials: new Set(),
+  
+  getCellKey(x, y) {
+    return `${x},${y}`
+  },
+  
+  isSpecial(cell) {
+    if (!cell) return false
+    if (cell === null) return false
+    if (typeof cell !== "object") return false
+    return cell.special !== undefined || cell.type === "special"
+  },
+  
+  getSpecialType(cell) {
+    if (!cell) return null
+    if (typeof cell !== "object") return null
+    if (cell.special) return cell.special
+    if (cell.type === "special" && cell.special) return cell.special
+    return null
+  },
+  
+  async handleSpecialSwap(cellA, cellB, posA, posB, swipeDir) {
+    const typeA = this.getSpecialType(cellA)
+    const typeB = this.getSpecialType(cellB)
+    
+    console.log(`⚡ Special Combo: ${typeA} + ${typeB} at [${posA.x},${posA.y}] & [${posB.x},${posB.y}]`)
+    
+    this.processedSpecials.clear()
+    
+    const comboKey = [typeA, typeB].sort().join('_')
+    
+    switch(comboKey) {
+      case 'rocket_rocket':
+        await this.rocketRocket(posA, posB, swipeDir)
+        break
+      case 'bomb_rocket':
+        await this.rocketBomb(posA, posB, swipeDir)
+        break
+      case 'color_rocket':
+        await this.rocketColor(posA, posB, swipeDir)
+        break
+      case 'bomb_bomb':
+        await this.bombBomb(posA, posB, swipeDir)
+        break
+      case 'bomb_color':
+        await this.bombColor(posA, posB, swipeDir)
+        break
+      case 'color_color':
+        await this.colorColor(posA, posB, swipeDir)
+        break
+    }
+    
+    this.processedSpecials.clear()
+    ComboManager.reset()
+  },
+  
+  async safeActivateSpecial(x, y, color, direction) {
+    const key = this.getCellKey(x, y)
+    if (this.processedSpecials.has(key)) return
+    
+    const cell = board[y]?.[x]
+    if (!cell) return
+    
+    if (this.isSpecial(cell)) {
+      this.processedSpecials.add(key)
+      await Specials.activateWithDelay(x, y, color, direction)
+    }
+  },
+  
+  // 🚀 + 🚀 = Крест
+  async rocketRocket(posA, posB, swipeDir) {
+    const centerX = posB.x
+    const centerY = posB.y
+    
+    // Визуальные эффекты
+    for (let i = 0; i < SIZE; i++) {
+      if (cells[centerY] && cells[centerY][i]) {
+        cells[centerY][i].classList.add("rocketLine")
+        setTimeout(() => {
+          if (cells[centerY] && cells[centerY][i]) 
+            cells[centerY][i].classList.remove("rocketLine")
+        }, 400)
+      }
+      if (cells[i] && cells[i][centerX]) {
+        cells[i][centerX].classList.add("rocketLine")
+        setTimeout(() => {
+          if (cells[i] && cells[i][centerX]) 
+            cells[i][centerX].classList.remove("rocketLine")
+        }, 400)
+      }
+    }
+    
+    await delay(350)
+    
+    // Активируем спец-фишки и собираем обычные
+    const cellsToProcess = []
+    
+    for (let i = 0; i < SIZE; i++) {
+      const cellH = board[centerY]?.[i]
+      if (cellH && !(i === centerX)) {
+        cellsToProcess.push({ x: i, y: centerY, cell: cellH })
+      }
+      
+      const cellV = board[i]?.[centerX]
+      if (cellV && !(i === centerY)) {
+        cellsToProcess.push({ x: centerX, y: i, cell: cellV })
+      }
+    }
+    
+    // Центральная клетка
+    const centerCell = board[centerY]?.[centerX]
+    if (centerCell) {
+      cellsToProcess.push({ x: centerX, y: centerY, cell: centerCell })
+    }
+    
+    // Сначала активируем все спец-фишки
+    for (const item of cellsToProcess) {
+      if (this.isSpecial(item.cell)) {
+        const color = item.cell.color || null
+        await this.safeActivateSpecial(item.x, item.y, color, 'both')
+      }
+    }
+    
+    // Удаляем обычные фишки
+    for (const item of cellsToProcess) {
+      if (!this.isSpecial(item.cell) || board[item.y]?.[item.x] === null) {
+        const currentCell = board[item.y]?.[item.x]
+        if (currentCell && !this.isSpecial(currentCell)) {
+          Specials.collectCell(item.x, item.y)
+          board[item.y][item.x] = null
+        }
+      }
+    }
+    
+    renderBoard()
+    await delay(200)
+  },
+  
+  // 🚀 + 💣
+  async rocketBomb(posA, posB, swipeDir) {
+    const rocketPos = this.getSpecialType(board[posA.y]?.[posA.x]) === 'rocket' ? posA : posB
+    const bombPos = this.getSpecialType(board[posA.y]?.[posA.x]) === 'bomb' ? posA : posB
+    
+    // 1. Сначала активируем ракету
+    await Specials.activateWithDelay(rocketPos.x, rocketPos.y, null, swipeDir)
+    
+    await delay(300)
+    
+    // 2. Затем активируем бомбу
+    if (board[bombPos.y]?.[bombPos.x]) {
+      await Specials.activateWithDelay(bombPos.x, bombPos.y, null, null)
+    }
+  },
+  
+  // 🚀 + 🌈
+  async rocketColor(posA, posB, swipeDir) {
+    const colorPos = this.getSpecialType(board[posA.y]?.[posA.x]) === 'color' ? posA : posB
+    const otherPos = this.getSpecialType(board[posA.y]?.[posA.x]) === 'color' ? posB : posA
+    
+    // Определяем цвет фишки, с которой свапнули радугу
+    const otherCell = board[otherPos.y]?.[otherPos.x]
+    let targetColor = null
+    
+    if (typeof otherCell === 'string') {
+      targetColor = otherCell
+    } else if (otherCell && otherCell.color) {
+      targetColor = otherCell.color
+    }
+    
+    if (!targetColor) return
+    
+    // Удаляем обе спец-фишки
+    Specials.collectCell(posA.x, posA.y)
+    Specials.collectCell(posB.x, posB.y)
+    board[posA.y][posA.x] = null
+    board[posB.y][posB.x] = null
+    
+    // Превращаем все фишки выбранного цвета в ракеты
+    const rocketPositions = []
+    
+    for (let y = 0; y < SIZE; y++) {
+      for (let x = 0; x < SIZE; x++) {
+        const cell = board[y]?.[x]
+        if (!cell) continue
+        
+        let cellColor = null
+        if (typeof cell === 'string') cellColor = cell
+        else if (cell && cell.color) cellColor = cell.color
+        
+        if (cellColor === targetColor) {
+          board[y][x] = {
+            color: cellColor,
+            special: 'rocket',
+            type: 'special'
+          }
+          rocketPositions.push({ x, y })
+        }
+      }
+    }
+    
+    renderBoard()
+    await delay(300)
+    
+    // Активируем ракеты волной с задержкой
+    for (let i = 0; i < rocketPositions.length; i++) {
+      const pos = rocketPositions[i]
+      const cell = board[pos.y]?.[pos.x]
+      
+      if (cell && this.isSpecial(cell) && this.getSpecialType(cell) === 'rocket') {
+        await this.safeActivateSpecial(
+          pos.x, 
+          pos.y, 
+          cell.color, 
+          i % 2 === 0 ? 'horizontal' : 'vertical'
+        )
+        await delay(100)
+      }
+    }
+  },
+  
+  // 💣 + 💣 = Mega Bomb
+  async bombBomb(posA, posB, swipeDir) {
+    const centerX = posB.x
+    const centerY = posB.y
+    
+    await this.megaBombWithDelay(centerX, centerY)
+  },
+  
+  async megaBombWithDelay(x, y) {
+    const radius = 2
+    
+    // Визуальные эффекты
+    for (let dy = -radius; dy <= radius; dy++) {
+      for (let dx = -radius; dx <= radius; dx++) {
+        const nx = x + dx
+        const ny = y + dy
+        
+        if (nx >= 0 && nx < SIZE && ny >= 0 && ny < SIZE && cells[ny] && cells[ny][nx]) {
+          if (Math.abs(dx) <= 1 && Math.abs(dy) <= 1) {
+            cells[ny][nx].classList.add("bombBlast")
+          } else {
+            cells[ny][nx].classList.add("bombShockwave")
+          }
+          
+          setTimeout(() => {
+            if (cells[ny] && cells[ny][nx]) {
+              cells[ny][nx].classList.remove("bombBlast", "bombShockwave")
+            }
+          }, 500)
+        }
+      }
+    }
+    
+    await delay(400)
+    
+    // Собираем все клетки в радиусе 5x5
+    const cellsToProcess = []
+    
+    for (let dy = -radius; dy <= radius; dy++) {
+      for (let dx = -radius; dx <= radius; dx++) {
+        const nx = x + dx
+        const ny = y + dy
+        
+        if (nx >= 0 && nx < SIZE && ny >= 0 && ny < SIZE) {
+          cellsToProcess.push({ x: nx, y: ny })
+        }
+      }
+    }
+    
+    // Активируем спец-фишки
+    for (const pos of cellsToProcess) {
+      const cell = board[pos.y]?.[pos.x]
+      if (cell && this.isSpecial(cell)) {
+        const color = typeof cell === 'object' ? cell.color : null
+        await this.safeActivateSpecial(pos.x, pos.y, color, null)
+      }
+    }
+    
+    // Удаляем обычные фишки
+    for (const pos of cellsToProcess) {
+      const cell = board[pos.y]?.[pos.x]
+      if (cell && !this.isSpecial(cell)) {
+        Specials.collectCell(pos.x, pos.y)
+        board[pos.y][pos.x] = null
+      }
+    }
+    
+    renderBoard()
+    await delay(200)
+    
+    // Запускаем 3 дополнительные ракеты в случайных направлениях
+    const directions = ['horizontal', 'vertical']
+    const rocketCount = 3
+    
+    for (let i = 0; i < rocketCount; i++) {
+      const randomDir = directions[Math.floor(Math.random() * directions.length)]
+      const randomColor = COLORS[Math.floor(Math.random() * COLORS.length)]
+      
+      let rx, ry
+      
+      do {
+        rx = Math.floor(Math.random() * SIZE)
+        ry = Math.floor(Math.random() * SIZE)
+      } while (board[ry]?.[rx] !== null && board[ry]?.[rx] !== undefined)
+      
+      board[ry][rx] = {
+        color: randomColor,
+        special: 'rocket',
+        type: 'special'
+      }
+      await this.safeActivateSpecial(rx, ry, randomColor, randomDir)
+      await delay(150)
+    }
+  },
+  
+  // 💣 + 🌈
+  async bombColor(posA, posB, swipeDir) {
+    const colorPos = this.getSpecialType(board[posA.y]?.[posA.x]) === 'color' ? posA : posB
+    const otherPos = this.getSpecialType(board[posA.y]?.[posA.x]) === 'color' ? posB : posA
+    
+    // Определяем цвет
+    const otherCell = board[otherPos.y]?.[otherPos.x]
+    let targetColor = null
+    
+    if (typeof otherCell === 'string') {
+      targetColor = otherCell
+    } else if (otherCell && otherCell.color) {
+      targetColor = otherCell.color
+    }
+    
+    if (!targetColor) return
+    
+    // Удаляем обе спец-фишки
+    Specials.collectCell(posA.x, posA.y)
+    Specials.collectCell(posB.x, posB.y)
+    board[posA.y][posA.x] = null
+    board[posB.y][posB.x] = null
+    
+    // Превращаем все фишки выбранного цвета в бомбы
+    const bombPositions = []
+    
+    for (let y = 0; y < SIZE; y++) {
+      for (let x = 0; x < SIZE; x++) {
+        const cell = board[y]?.[x]
+        if (!cell) continue
+        
+        let cellColor = null
+        if (typeof cell === 'string') cellColor = cell
+        else if (cell && cell.color) cellColor = cell.color
+        
+        if (cellColor === targetColor) {
+          board[y][x] = {
+            color: cellColor,
+            special: 'bomb',
+            type: 'special'
+          }
+          bombPositions.push({ x, y })
+        }
+      }
+    }
+    
+    renderBoard()
+    await delay(300)
+    
+    // Взрываем все бомбы одновременно (волнами для эффекта)
+    for (const pos of bombPositions) {
+      const cell = board[pos.y]?.[pos.x]
+      if (cell && this.isSpecial(cell) && this.getSpecialType(cell) === 'bomb') {
+        await this.safeActivateSpecial(pos.x, pos.y, cell.color, null)
+      }
+    }
+  },
+  
+  // 🌈 + 🌈 = Полная очистка поля
+  async colorColor(posA, posB, swipeDir) {
+    const allPositions = []
+    
+    // Собираем все позиции на поле
+    for (let y = 0; y < SIZE; y++) {
+      for (let x = 0; x < SIZE; x++) {
+        if (board[y]?.[x]) {
+          allPositions.push({ x, y })
+        }
+      }
+    }
+    
+    // Мощная анимация очистки
+    for (let y = 0; y < SIZE; y++) {
+      for (let x = 0; x < SIZE; x++) {
+        if (cells[y] && cells[y][x]) {
+          cells[y][x].classList.add("rainbowFlash")
+          setTimeout(() => {
+            if (cells[y] && cells[y][x]) 
+              cells[y][x].classList.remove("rainbowFlash")
+          }, 600)
+        }
+      }
+    }
+    
+    await delay(400)
+    
+    // Сначала активируем все спец-фишки
+    for (const pos of allPositions) {
+      const cell = board[pos.y]?.[pos.x]
+      if (cell && this.isSpecial(cell)) {
+        const color = typeof cell === 'object' ? cell.color : null
+        await this.safeActivateSpecial(pos.x, pos.y, color, null)
+      }
+    }
+    
+    // Затем удаляем все оставшиеся фишки
+    for (const pos of allPositions) {
+      const cell = board[pos.y]?.[pos.x]
+      if (cell) {
+        Specials.collectCell(pos.x, pos.y)
+        board[pos.y][pos.x] = null
+      }
+    }
+    
+    renderBoard()
+    await delay(300)
+  }
+}
+
 // ================= INIT =================
 
 async function init(){
@@ -451,15 +877,38 @@ async function onCellClick(x, y){
   // Определяем направление свайпа
   const swipeDir = (a.x !== b.x) ? 'horizontal' : 'vertical'
   
+  const cellA = board[a.y]?.[a.x]
+  const cellB = board[b.y]?.[b.x]
+  
+  // Проверка на комбинацию двух спец-фишек
+  if (SpecialComboManager.isSpecial(cellA) && SpecialComboManager.isSpecial(cellB)) {
+    await SpecialComboManager.handleSpecialSwap(cellA, cellB, a, b, swipeDir)
+    
+    await dropWithDelay(150)
+    await spawnNewWithDelay(150)
+    renderBoard()
+    
+    ComboManager.firstMatchInChain = false
+    ComboManager.comboActive = true
+    
+    await processMatchesAsync()
+    
+    updateHUD()
+    checkWin()
+    startHintTimer()
+    isAnimating = false
+    return
+  }
+  
   let hasSpecialActivated = false
   
-  if(board[b.y][b.x] && typeof board[b.y][b.x] === "object" && board[b.y][b.x] !== null && board[b.y][b.x].special){
+  if(cellB && SpecialComboManager.isSpecial(cellB)){
     await Specials.activateWithDelay(b.x, b.y, null, swipeDir)
     board[b.y][b.x] = null
     hasSpecialActivated = true
   }
   
-  if(!hasSpecialActivated && board[a.y][a.x] && typeof board[a.y][a.x] === "object" && board[a.y][a.x] !== null && board[a.y][a.x].special){
+  if(!hasSpecialActivated && cellA && SpecialComboManager.isSpecial(cellA)){
     await Specials.activateWithDelay(a.x, a.y, null, swipeDir)
     board[a.y][a.x] = null
     hasSpecialActivated = true
