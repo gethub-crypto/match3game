@@ -1,3 +1,5 @@
+// ================= SPECIAlS =================
+
 const Specials = {
   create(type, x, y, color = null){
     board[y][x] = {
@@ -166,27 +168,64 @@ const Specials = {
     
     await this.delay(350)
     
-    // Собираем фишки перед удалением
+    // Находим спец-фишки для активации
+    const specialsToActivate = []
+    
     if(horizontal){
       for(let i=0; i<SIZE; i++){
-        if(board[y] && board[y][i]) this.collectCell(i, y)
+        if(board[y] && board[y][i]) {
+          const cell = board[y][i]
+          if(SpecialComboManager.isSpecial(cell)) {
+            specialsToActivate.push({x: i, y, cell})
+          } else {
+            this.collectCell(i, y)
+          }
+        }
       }
     }
     if(vertical){
       for(let i=0; i<SIZE; i++){
-        if(board[i] && board[i][x]) this.collectCell(x, i)
+        if(board[i] && board[i][x]) {
+          const cell = board[i][x]
+          if(SpecialComboManager.isSpecial(cell)) {
+            specialsToActivate.push({x, y: i, cell})
+          } else {
+            this.collectCell(x, i)
+          }
+        }
       }
     }
     
-    // Удаляем
+    // Удаляем обычные фишки
     if(horizontal){
       for(let i=0; i<SIZE; i++){
-        if(board[y] && board[y][i]) board[y][i] = null
+        if(board[y] && board[y][i]) {
+          if(!SpecialComboManager.isSpecial(board[y][i])) {
+            board[y][i] = null
+          }
+        }
       }
     }
     if(vertical){
       for(let i=0; i<SIZE; i++){
-        if(board[i] && board[i][x]) board[i][x] = null
+        if(board[i] && board[i][x]) {
+          if(!SpecialComboManager.isSpecial(board[i][x])) {
+            board[i][x] = null
+          }
+        }
+      }
+    }
+    
+    // Активируем встреченные спец-фишки
+    for(const spec of specialsToActivate) {
+      const specColor = spec.cell.color || null
+      await SpecialComboManager.safeActivateSpecial(spec.x, spec.y, specColor, null)
+    }
+    
+    // Очищаем оставшиеся спец-фишки
+    for(const spec of specialsToActivate) {
+      if(board[spec.y] && board[spec.y][spec.x]) {
+        board[spec.y][spec.x] = null
       }
     }
     
@@ -242,20 +281,44 @@ const Specials = {
     
     await this.delay(200)
     
-    // Собираем фишки перед удалением
-    for(let yy=y-1; yy<=y+1; yy++){
-      for(let xx=x-1; xx<=x+1; xx++){
-        if(xx>=0 && yy>=0 && xx<SIZE && yy<SIZE){
-          this.collectCell(xx, yy)
-        }
-      }
-    }
+    // Находим спец-фишки для активации
+    const specialsToActivate = []
     
     for(let yy=y-1; yy<=y+1; yy++){
       for(let xx=x-1; xx<=x+1; xx++){
         if(xx>=0 && yy>=0 && xx<SIZE && yy<SIZE){
-          if(board[yy] && board[yy][xx] !== undefined) board[yy][xx] = null
+          if(board[yy] && board[yy][xx]) {
+            if(SpecialComboManager.isSpecial(board[yy][xx])) {
+              specialsToActivate.push({x: xx, y: yy, cell: board[yy][xx]})
+            } else {
+              this.collectCell(xx, yy)
+            }
+          }
         }
+      }
+    }
+    
+    // Удаляем обычные фишки
+    for(let yy=y-1; yy<=y+1; yy++){
+      for(let xx=x-1; xx<=x+1; xx++){
+        if(xx>=0 && yy>=0 && xx<SIZE && yy<SIZE){
+          if(board[yy] && board[yy][xx] !== undefined && !SpecialComboManager.isSpecial(board[yy][xx])) {
+            board[yy][xx] = null
+          }
+        }
+      }
+    }
+    
+    // Активируем спец-фишки
+    for(const spec of specialsToActivate) {
+      const specColor = spec.cell.color || null
+      await SpecialComboManager.safeActivateSpecial(spec.x, spec.y, specColor, null)
+    }
+    
+    // Очищаем спец-фишки после активации
+    for(const spec of specialsToActivate) {
+      if(board[spec.y] && board[spec.y][spec.x]) {
+        board[spec.y][spec.x] = null
       }
     }
     
@@ -305,6 +368,8 @@ const Specials = {
     }
     
     const targetCells = []
+    const specialsToActivate = []
+    
     for(let yy=0; yy<SIZE; yy++){
       for(let xx=0; xx<SIZE; xx++){
         const cell = board[yy]?.[xx]
@@ -314,7 +379,11 @@ const Specials = {
         else if(typeof cell === "object" && cell !== null) cellColor = cell.color
         
         if(cellColor === targetColor && cells[yy] && cells[yy][xx]){
-          targetCells.push({x: xx, y: yy})
+          if(SpecialComboManager.isSpecial(cell)) {
+            specialsToActivate.push({x: xx, y: yy, cell})
+          } else {
+            targetCells.push({x: xx, y: yy})
+          }
         }
       }
     }
@@ -344,30 +413,26 @@ const Specials = {
     
     await this.delay(400)
     
-    // Собираем фишки перед удалением
-    for(let yy=0; yy<SIZE; yy++){
-      for(let xx=0; xx<SIZE; xx++){
-        const cell = board[yy]?.[xx]
-        
-        if(typeof cell === "string" && cell === targetColor){
-          this.collectCell(xx, yy)
-        }
-        else if(typeof cell === "object" && cell !== null && cell.color === targetColor){
-          this.collectCell(xx, yy)
-        }
-      }
+    // Собираем обычные фишки
+    for(const pos of targetCells) {
+      this.collectCell(pos.x, pos.y)
     }
     
-    for(let yy=0; yy<SIZE; yy++){
-      for(let xx=0; xx<SIZE; xx++){
-        const cell = board[yy]?.[xx]
-        
-        if(typeof cell === "string" && cell === targetColor){
-          board[yy][xx] = null
-        }
-        else if(typeof cell === "object" && cell !== null && cell.color === targetColor){
-          board[yy][xx] = null
-        }
+    // Удаляем обычные фишки
+    for(const pos of targetCells) {
+      board[pos.y][pos.x] = null
+    }
+    
+    // Активируем спец-фишки
+    for(const spec of specialsToActivate) {
+      const specColor = spec.cell.color || null
+      await SpecialComboManager.safeActivateSpecial(spec.x, spec.y, specColor, null)
+    }
+    
+    // Очищаем спец-фишки после активации
+    for(const spec of specialsToActivate) {
+      if(board[spec.y] && board[spec.y][spec.x]) {
+        board[spec.y][spec.x] = null
       }
     }
     
@@ -494,4 +559,4 @@ const Specials = {
       }
     }
   }
-      }
+}
