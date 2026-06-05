@@ -131,9 +131,12 @@ const SpecialComboManager = {
     
     console.log(`⚡ Special Combo: ${typeA} + ${typeB} at [${posA.x},${posA.y}] & [${posB.x},${posB.y}]`)
     
-    this.processedSpecials.clear()
-    
     const comboKey = [typeA, typeB].sort().join('_')
+    
+    // Показать туториал при первом комбо
+    TutorialSystem.showComboTutorial(comboKey)
+    
+    this.processedSpecials.clear()
     
     switch(comboKey) {
       case 'rocket_rocket':
@@ -528,10 +531,200 @@ const SpecialComboManager = {
   }
 }
 
+// ================= TUTORIAL SYSTEM =================
+const TutorialSystem = {
+  hasSeenSpecialTutorial: false,
+  hasSeenComboTutorial: false,
+  currentTutorialStep: 0,
+  tutorialActive: false,
+  
+  init() {
+    // Загружаем из localStorage
+    this.hasSeenSpecialTutorial = localStorage.getItem('seenSpecialTutorial') === 'true'
+    this.hasSeenComboTutorial = localStorage.getItem('seenComboTutorial') === 'true'
+  },
+  
+  async showSpecialTutorial(specialType, x, y) {
+    if (this.hasSeenSpecialTutorial) return
+    if (this.tutorialActive) return
+    
+    this.tutorialActive = true
+    gameLocked = true
+    
+    // Подсвечиваем спец-фишку
+    const cell = cells[y]?.[x]
+    if (cell) {
+      cell.classList.add('tutorial-highlight')
+      cell.style.zIndex = '100'
+      cell.style.animation = 'tutorialPulse 1s infinite'
+    }
+    
+    // Создаем overlay с подсказкой
+    const overlay = document.createElement('div')
+    overlay.className = 'tutorial-overlay'
+    overlay.id = 'specialTutorial'
+    
+    const messages = {
+      rocket: {
+        title: '🚀 Ракета!',
+        description: 'Удаляет все фишки в ряду или столбце.\nСвайпните ракету в любом направлении!',
+        tip: '💡 Совет: Соедините две ракеты для мощного крестового удара!'
+      },
+      bomb: {
+        title: '💣 Бомба!',
+        description: 'Взрывает область 3×3 вокруг себя.\nАктивируйте бомбу свайпом!',
+        tip: '💡 Совет: Две бомбы создадут Мега-бомбу с огромным радиусом взрыва!'
+      },
+      color: {
+        title: '🌈 Радуга!',
+        description: 'Удаляет все фишки одного цвета с поля.\nСвайпните с фишкой нужного цвета!',
+        tip: '💡 Совет: Две радуги полностью очистят всё поле!'
+      }
+    }
+    
+    const msg = messages[specialType] || messages.rocket
+    
+    overlay.innerHTML = `
+      <div class="tutorial-card">
+        <div class="tutorial-icon">${specialType === 'rocket' ? '🚀' : specialType === 'bomb' ? '💣' : '🌈'}</div>
+        <h3>${msg.title}</h3>
+        <p>${msg.description}</p>
+        <div class="tutorial-tip">
+          <span>${msg.tip}</span>
+        </div>
+        <button class="tutorial-btn" onclick="TutorialSystem.closeSpecialTutorial()">
+          Понятно!
+        </button>
+        <label class="tutorial-checkbox">
+          <input type="checkbox" onchange="TutorialSystem.dontShowAgain(event, 'special')">
+          Больше не показывать
+        </label>
+      </div>
+    `
+    
+    document.body.appendChild(overlay)
+    
+    // Задержка перед появлением
+    await delay(200)
+    overlay.classList.add('active')
+  },
+  
+  async showComboTutorial(comboType) {
+    if (this.hasSeenComboTutorial) return
+    if (this.tutorialActive) return
+    
+    this.tutorialActive = true
+    gameLocked = true
+    
+    const overlay = document.createElement('div')
+    overlay.className = 'tutorial-overlay'
+    overlay.id = 'comboTutorial'
+    
+    const combos = {
+      'rocket_rocket': {
+        title: '⚡ Крестовый удар!',
+        desc: 'Ракета + Ракета = очистка целой строки и столбца одновременно!',
+        icon: '🚀+🚀'
+      },
+      'bomb_rocket': {
+        title: '💥 Взрывная волна!',
+        desc: 'Ракета + Бомба = последовательная активация с максимальным уроном!',
+        icon: '🚀+💣'
+      },
+      'color_rocket': {
+        title: '🎨 Ракетный дождь!',
+        desc: 'Радуга + Ракета = все фишки цвета превращаются в ракеты!',
+        icon: '🚀+🌈'
+      },
+      'bomb_bomb': {
+        title: '☄️ Мега-бомба!',
+        desc: 'Бомба + Бомба = огромный взрыв 5×5 + 3 случайные ракеты!',
+        icon: '💣+💣'
+      },
+      'bomb_color': {
+        title: '🎆 Бомбовый фейерверк!',
+        desc: 'Радуга + Бомба = все фишки цвета становятся бомбами!',
+        icon: '💣+🌈'
+      },
+      'color_color': {
+        title: '🌟 Абсолютная очистка!',
+        desc: 'Радуга + Радуга = полная очистка всего игрового поля!',
+        icon: '🌈+🌈'
+      }
+    }
+    
+    const combo = combos[comboType] || combos['rocket_rocket']
+    
+    overlay.innerHTML = `
+      <div class="tutorial-card combo-card">
+        <div class="tutorial-icon combo-icon">${combo.icon}</div>
+        <h3>${combo.title}</h3>
+        <p>${combo.desc}</p>
+        <div class="tutorial-tip">
+          <span>💡 Попробуйте создавать спец-фишки в матчах из 4+ фишек!</span>
+        </div>
+        <button class="tutorial-btn" onclick="TutorialSystem.closeComboTutorial()">
+          Круто!
+        </button>
+        <label class="tutorial-checkbox">
+          <input type="checkbox" onchange="TutorialSystem.dontShowAgain(event, 'combo')">
+          Больше не показывать
+        </label>
+      </div>
+    `
+    
+    document.body.appendChild(overlay)
+    
+    await delay(200)
+    overlay.classList.add('active')
+  },
+  
+  closeSpecialTutorial() {
+    const overlay = document.getElementById('specialTutorial')
+    if (overlay) {
+      overlay.classList.remove('active')
+      setTimeout(() => overlay.remove(), 300)
+    }
+    
+    // Убираем подсветку
+    const highlighted = document.querySelector('.tutorial-highlight')
+    if (highlighted) {
+      highlighted.classList.remove('tutorial-highlight')
+      highlighted.style.zIndex = ''
+      highlighted.style.animation = ''
+    }
+    
+    this.tutorialActive = false
+    gameLocked = false
+  },
+  
+  closeComboTutorial() {
+    const overlay = document.getElementById('comboTutorial')
+    if (overlay) {
+      overlay.classList.remove('active')
+      setTimeout(() => overlay.remove(), 300)
+    }
+    
+    this.tutorialActive = false
+    gameLocked = false
+  },
+  
+  dontShowAgain(event, type) {
+    if (type === 'special') {
+      this.hasSeenSpecialTutorial = event.target.checked
+      localStorage.setItem('seenSpecialTutorial', event.target.checked)
+    } else if (type === 'combo') {
+      this.hasSeenComboTutorial = event.target.checked
+      localStorage.setItem('seenComboTutorial', event.target.checked)
+    }
+  }
+}
+
 // ================= INIT =================
 
 async function init(){
   InputManager.init();
+  TutorialSystem.init();
   LivesSystem.init()
   await Levels.load()
   updateScreens()
@@ -1092,6 +1285,9 @@ async function processMatchesAsync(){
         special: specialType,
         type: "special"
       }
+      
+      // Показать туториал при первом создании спец-фишки
+      TutorialSystem.showSpecialTutorial(specialType, specialCell.x, specialCell.y)
     }
     
     match.cells.forEach(cellPos => {
