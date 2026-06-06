@@ -730,6 +730,7 @@ z-index:10000;
 /* Убедитесь что cell имеет position: relative для стрелок */
 .cell {
   position: relative;
+  overflow: visible;   /* ← Чтобы стрелки были видны за пределами клетки */
 }
 
 
