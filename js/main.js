@@ -133,8 +133,8 @@ const SpecialComboManager = {
     
     const comboKey = [typeA, typeB].sort().join('_')
     
-    // Показать туториал при первом комбо
-    TutorialSystem.showComboTutorial(comboKey)
+    // Показать визуальную подсказку комбо
+    TutorialSystem.showComboHint(comboKey, posA, posB)
     
     this.processedSpecials.clear()
     
@@ -535,188 +535,126 @@ const SpecialComboManager = {
 const TutorialSystem = {
   hasSeenSpecialTutorial: false,
   hasSeenComboTutorial: false,
-  currentTutorialStep: 0,
-  tutorialActive: false,
+  activeHintArrows: [],
   
   init() {
-    // Загружаем из localStorage
     this.hasSeenSpecialTutorial = localStorage.getItem('seenSpecialTutorial') === 'true'
     this.hasSeenComboTutorial = localStorage.getItem('seenComboTutorial') === 'true'
   },
   
-  async showSpecialTutorial(specialType, x, y) {
+  showSpecialHint(specialType, x, y) {
     if (this.hasSeenSpecialTutorial) return
-    if (this.tutorialActive) return
     
-    this.tutorialActive = true
-    gameLocked = true
+    const cell = cells[y]?.[x]
+    if (!cell) return
     
     // Подсвечиваем спец-фишку
-    const cell = cells[y]?.[x]
-    if (cell) {
-      cell.classList.add('tutorial-highlight')
-      cell.style.zIndex = '100'
-      cell.style.animation = 'tutorialPulse 1s infinite'
-    }
+    cell.classList.add('special-glow')
     
-    // Создаем overlay с подсказкой
-    const overlay = document.createElement('div')
-    overlay.className = 'tutorial-overlay'
-    overlay.id = 'specialTutorial'
-    
-    const messages = {
-      rocket: {
-        title: '🚀 Ракета!',
-        description: 'Удаляет все фишки в ряду или столбце.\nСвайпните ракету в любом направлении!',
-        tip: '💡 Совет: Соедините две ракеты для мощного крестового удара!'
-      },
-      bomb: {
-        title: '💣 Бомба!',
-        description: 'Взрывает область 3×3 вокруг себя.\nАктивируйте бомбу свайпом!',
-        tip: '💡 Совет: Две бомбы создадут Мега-бомбу с огромным радиусом взрыва!'
-      },
-      color: {
-        title: '🌈 Радуга!',
-        description: 'Удаляет все фишки одного цвета с поля.\nСвайпните с фишкой нужного цвета!',
-        tip: '💡 Совет: Две радуги полностью очистят всё поле!'
+    // Показываем стрелки к соседним клеткам
+    const neighbors = this.getNeighbors(x, y)
+    neighbors.forEach(({nx, ny, direction}) => {
+      const neighborCell = cells[ny]?.[nx]
+      if (neighborCell) {
+        // Добавляем стрелку-подсказку
+        const arrow = document.createElement('div')
+        arrow.className = `hint-arrow hint-${direction}`
+        arrow.innerHTML = direction === 'up' ? '↑' : 
+                         direction === 'down' ? '↓' : 
+                         direction === 'left' ? '←' : '→'
+        neighborCell.appendChild(arrow)
+        this.activeHintArrows.push({ element: arrow, cell: neighborCell })
+        
+        // Подсвечиваем соседнюю клетку
+        neighborCell.classList.add('hint-neighbor')
       }
-    }
+    })
     
-    const msg = messages[specialType] || messages.rocket
+    // Автоматически убираем подсказку через 5 секунд
+    setTimeout(() => this.clearSpecialHint(), 5000)
     
-    overlay.innerHTML = `
-      <div class="tutorial-card">
-        <div class="tutorial-icon">${specialType === 'rocket' ? '🚀' : specialType === 'bomb' ? '💣' : '🌈'}</div>
-        <h3>${msg.title}</h3>
-        <p>${msg.description}</p>
-        <div class="tutorial-tip">
-          <span>${msg.tip}</span>
-        </div>
-        <button class="tutorial-btn" onclick="TutorialSystem.closeSpecialTutorial()">
-          Понятно!
-        </button>
-        <label class="tutorial-checkbox">
-          <input type="checkbox" onchange="TutorialSystem.dontShowAgain(event, 'special')">
-          Больше не показывать
-        </label>
-      </div>
-    `
-    
-    document.body.appendChild(overlay)
-    
-    // Задержка перед появлением
-    await delay(200)
-    overlay.classList.add('active')
+    // Отмечаем что видели туториал спец-фишек
+    this.hasSeenSpecialTutorial = true
+    localStorage.setItem('seenSpecialTutorial', 'true')
   },
   
-  async showComboTutorial(comboType) {
+  showComboHint(comboType, posA, posB) {
     if (this.hasSeenComboTutorial) return
-    if (this.tutorialActive) return
     
-    this.tutorialActive = true
-    gameLocked = true
+    const cellA = cells[posA.y]?.[posA.x]
+    const cellB = cells[posB.y]?.[posB.x]
     
-    const overlay = document.createElement('div')
-    overlay.className = 'tutorial-overlay'
-    overlay.id = 'comboTutorial'
+    if (!cellA || !cellB) return
     
-    const combos = {
-      'rocket_rocket': {
-        title: '⚡ Крестовый удар!',
-        desc: 'Ракета + Ракета = очистка целой строки и столбца одновременно!',
-        icon: '🚀+🚀'
-      },
-      'bomb_rocket': {
-        title: '💥 Взрывная волна!',
-        desc: 'Ракета + Бомба = последовательная активация с максимальным уроном!',
-        icon: '🚀+💣'
-      },
-      'color_rocket': {
-        title: '🎨 Ракетный дождь!',
-        desc: 'Радуга + Ракета = все фишки цвета превращаются в ракеты!',
-        icon: '🚀+🌈'
-      },
-      'bomb_bomb': {
-        title: '☄️ Мега-бомба!',
-        desc: 'Бомба + Бомба = огромный взрыв 5×5 + 3 случайные ракеты!',
-        icon: '💣+💣'
-      },
-      'bomb_color': {
-        title: '🎆 Бомбовый фейерверк!',
-        desc: 'Радуга + Бомба = все фишки цвета становятся бомбами!',
-        icon: '💣+🌈'
-      },
-      'color_color': {
-        title: '🌟 Абсолютная очистка!',
-        desc: 'Радуга + Радуга = полная очистка всего игрового поля!',
-        icon: '🌈+🌈'
-      }
+    // Создаем эффект "молнии" между двумя спец-фишками
+    const comboEffect = document.createElement('div')
+    comboEffect.className = 'combo-spark'
+    
+    // Позиционируем между двумя клетками
+    const rectA = cellA.getBoundingClientRect()
+    const rectB = cellB.getBoundingClientRect()
+    const boardRect = document.getElementById('board').getBoundingClientRect()
+    
+    const centerX = (rectA.left + rectA.right + rectB.left + rectB.right) / 4 - boardRect.left
+    const centerY = (rectA.top + rectA.bottom + rectB.top + rectB.bottom) / 4 - boardRect.top
+    
+    comboEffect.style.left = centerX + 'px'
+    comboEffect.style.top = centerY + 'px'
+    
+    // Иконка комбо
+    const icons = {
+      'rocket_rocket': '✚',
+      'bomb_rocket': '⚡',
+      'color_rocket': '✨',
+      'bomb_bomb': '💥',
+      'bomb_color': '🎆',
+      'color_color': '🌟'
     }
     
-    const combo = combos[comboType] || combos['rocket_rocket']
+    comboEffect.innerHTML = icons[comboType] || '⚡'
+    document.getElementById('board').appendChild(comboEffect)
     
-    overlay.innerHTML = `
-      <div class="tutorial-card combo-card">
-        <div class="tutorial-icon combo-icon">${combo.icon}</div>
-        <h3>${combo.title}</h3>
-        <p>${combo.desc}</p>
-        <div class="tutorial-tip">
-          <span>💡 Попробуйте создавать спец-фишки в матчах из 4+ фишек!</span>
-        </div>
-        <button class="tutorial-btn" onclick="TutorialSystem.closeComboTutorial()">
-          Круто!
-        </button>
-        <label class="tutorial-checkbox">
-          <input type="checkbox" onchange="TutorialSystem.dontShowAgain(event, 'combo')">
-          Больше не показывать
-        </label>
-      </div>
-    `
+    // Эффект соединения
+    cellA.classList.add('combo-link')
+    cellB.classList.add('combo-link')
     
-    document.body.appendChild(overlay)
+    // Автоматически убираем через 3 секунды
+    setTimeout(() => {
+      comboEffect.remove()
+      cellA.classList.remove('combo-link')
+      cellB.classList.remove('combo-link')
+    }, 3000)
     
-    await delay(200)
-    overlay.classList.add('active')
+    // Отмечаем что видели туториал комбо
+    this.hasSeenComboTutorial = true
+    localStorage.setItem('seenComboTutorial', 'true')
   },
   
-  closeSpecialTutorial() {
-    const overlay = document.getElementById('specialTutorial')
-    if (overlay) {
-      overlay.classList.remove('active')
-      setTimeout(() => overlay.remove(), 300)
-    }
-    
-    // Убираем подсветку
-    const highlighted = document.querySelector('.tutorial-highlight')
-    if (highlighted) {
-      highlighted.classList.remove('tutorial-highlight')
-      highlighted.style.zIndex = ''
-      highlighted.style.animation = ''
-    }
-    
-    this.tutorialActive = false
-    gameLocked = false
+  getNeighbors(x, y) {
+    const neighbors = []
+    if (y > 0) neighbors.push({nx: x, ny: y - 1, direction: 'up'})
+    if (y < SIZE - 1) neighbors.push({nx: x, ny: y + 1, direction: 'down'})
+    if (x > 0) neighbors.push({nx: x - 1, ny: y, direction: 'left'})
+    if (x < SIZE - 1) neighbors.push({nx: x + 1, ny: y, direction: 'right'})
+    return neighbors
   },
   
-  closeComboTutorial() {
-    const overlay = document.getElementById('comboTutorial')
-    if (overlay) {
-      overlay.classList.remove('active')
-      setTimeout(() => overlay.remove(), 300)
-    }
+  clearSpecialHint() {
+    // Убираем свечение
+    const glowing = document.querySelector('.special-glow')
+    if (glowing) glowing.classList.remove('special-glow')
     
-    this.tutorialActive = false
-    gameLocked = false
-  },
-  
-  dontShowAgain(event, type) {
-    if (type === 'special') {
-      this.hasSeenSpecialTutorial = event.target.checked
-      localStorage.setItem('seenSpecialTutorial', event.target.checked)
-    } else if (type === 'combo') {
-      this.hasSeenComboTutorial = event.target.checked
-      localStorage.setItem('seenComboTutorial', event.target.checked)
-    }
+    // Убираем стрелки
+    this.activeHintArrows.forEach(({element, cell}) => {
+      element.remove()
+      cell.classList.remove('hint-neighbor')
+    })
+    this.activeHintArrows = []
+    
+    // Убираем подсветку соседей
+    document.querySelectorAll('.hint-neighbor').forEach(el => {
+      el.classList.remove('hint-neighbor')
+    })
   }
 }
 
@@ -1286,8 +1224,8 @@ async function processMatchesAsync(){
         type: "special"
       }
       
-      // Показать туториал при первом создании спец-фишки
-      TutorialSystem.showSpecialTutorial(specialType, specialCell.x, specialCell.y)
+      // Показать визуальную подсказку при первом создании спец-фишки
+      TutorialSystem.showSpecialHint(specialType, specialCell.x, specialCell.y)
     }
     
     match.cells.forEach(cellPos => {
