@@ -133,8 +133,10 @@ const SpecialComboManager = {
     
     const comboKey = [typeA, typeB].sort().join('_')
     
-    // Показать визуальную подсказку комбо
-    TutorialSystem.showComboHint(comboKey, posA, posB)
+    // Интеграция с туториалом - отмечаем активацию комбо
+    if (typeof TutorialManager !== 'undefined') {
+      TutorialManager.onComboActivated(comboKey)
+    }
     
     this.processedSpecials.clear()
     
@@ -531,139 +533,17 @@ const SpecialComboManager = {
   }
 }
 
-// ================= TUTORIAL SYSTEM =================
-const TutorialSystem = {
-  hasSeenSpecialTutorial: false,
-  hasSeenComboTutorial: false,
-  activeHintArrows: [],
-  
-  init() {
-    this.hasSeenSpecialTutorial = localStorage.getItem('seenSpecialTutorial') === 'true'
-    this.hasSeenComboTutorial = localStorage.getItem('seenComboTutorial') === 'true'
-  },
-  
-  showSpecialHint(specialType, x, y) {
-    if (this.hasSeenSpecialTutorial) return
-    
-    const cell = cells[y]?.[x]
-    if (!cell) return
-    
-    // Подсвечиваем спец-фишку
-    cell.classList.add('special-glow')
-    
-    // Показываем стрелки к соседним клеткам
-    const neighbors = this.getNeighbors(x, y)
-    neighbors.forEach(({nx, ny, direction}) => {
-      const neighborCell = cells[ny]?.[nx]
-      if (neighborCell) {
-        // Добавляем стрелку-подсказку
-        const arrow = document.createElement('div')
-        arrow.className = `hint-arrow hint-${direction}`
-        arrow.innerHTML = direction === 'up' ? '↑' : 
-                         direction === 'down' ? '↓' : 
-                         direction === 'left' ? '←' : '→'
-        neighborCell.appendChild(arrow)
-        this.activeHintArrows.push({ element: arrow, cell: neighborCell })
-        
-        // Подсвечиваем соседнюю клетку
-        neighborCell.classList.add('hint-neighbor')
-      }
-    })
-    
-    // Автоматически убираем подсказку через 5 секунд
-    setTimeout(() => this.clearSpecialHint(), 5000)
-    
-    // Отмечаем что видели туториал спец-фишек
-    this.hasSeenSpecialTutorial = true
-    localStorage.setItem('seenSpecialTutorial', 'true')
-  },
-  
-  showComboHint(comboType, posA, posB) {
-    if (this.hasSeenComboTutorial) return
-    
-    const cellA = cells[posA.y]?.[posA.x]
-    const cellB = cells[posB.y]?.[posB.x]
-    
-    if (!cellA || !cellB) return
-    
-    // Создаем эффект "молнии" между двумя спец-фишками
-    const comboEffect = document.createElement('div')
-    comboEffect.className = 'combo-spark'
-    
-    // Позиционируем между двумя клетками
-    const rectA = cellA.getBoundingClientRect()
-    const rectB = cellB.getBoundingClientRect()
-    const boardRect = document.getElementById('board').getBoundingClientRect()
-    
-    const centerX = (rectA.left + rectA.right + rectB.left + rectB.right) / 4 - boardRect.left
-    const centerY = (rectA.top + rectA.bottom + rectB.top + rectB.bottom) / 4 - boardRect.top
-    
-    comboEffect.style.left = centerX + 'px'
-    comboEffect.style.top = centerY + 'px'
-    
-    // Иконка комбо
-    const icons = {
-      'rocket_rocket': '✚',
-      'bomb_rocket': '⚡',
-      'color_rocket': '✨',
-      'bomb_bomb': '💥',
-      'bomb_color': '🎆',
-      'color_color': '🌟'
-    }
-    
-    comboEffect.innerHTML = icons[comboType] || '⚡'
-    document.getElementById('board').appendChild(comboEffect)
-    
-    // Эффект соединения
-    cellA.classList.add('combo-link')
-    cellB.classList.add('combo-link')
-    
-    // Автоматически убираем через 3 секунды
-    setTimeout(() => {
-      comboEffect.remove()
-      cellA.classList.remove('combo-link')
-      cellB.classList.remove('combo-link')
-    }, 3000)
-    
-    // Отмечаем что видели туториал комбо
-    this.hasSeenComboTutorial = true
-    localStorage.setItem('seenComboTutorial', 'true')
-  },
-  
-  getNeighbors(x, y) {
-    const neighbors = []
-    if (y > 0) neighbors.push({nx: x, ny: y - 1, direction: 'up'})
-    if (y < SIZE - 1) neighbors.push({nx: x, ny: y + 1, direction: 'down'})
-    if (x > 0) neighbors.push({nx: x - 1, ny: y, direction: 'left'})
-    if (x < SIZE - 1) neighbors.push({nx: x + 1, ny: y, direction: 'right'})
-    return neighbors
-  },
-  
-  clearSpecialHint() {
-    // Убираем свечение
-    const glowing = document.querySelector('.special-glow')
-    if (glowing) glowing.classList.remove('special-glow')
-    
-    // Убираем стрелки
-    this.activeHintArrows.forEach(({element, cell}) => {
-      element.remove()
-      cell.classList.remove('hint-neighbor')
-    })
-    this.activeHintArrows = []
-    
-    // Убираем подсветку соседей
-    document.querySelectorAll('.hint-neighbor').forEach(el => {
-      el.classList.remove('hint-neighbor')
-    })
-  }
-}
-
 // ================= INIT =================
 
 async function init(){
   InputManager.init();
-  TutorialSystem.init();
-  LivesSystem.init()
+  LivesSystem.init();
+  
+  // Инициализация туториала (если модуль загружен)
+  if (typeof TutorialManager !== 'undefined') {
+    TutorialManager.init();
+  }
+  
   await Levels.load()
   updateScreens()
   updateCoinsUI()
@@ -707,6 +587,11 @@ function initLevel(){
   startGameplay()
   initCollectTracker()
   startHintTimer()
+  
+  // Проверка туториалов для текущего уровня
+  if (typeof TutorialManager !== 'undefined' && !TutorialManager.isActive) {
+    TutorialManager.checkLevelTutorials();
+  }
 }
 
 
@@ -969,6 +854,13 @@ async function onCellClick(x, y){
   if(gameLocked || isAnimating || isProcessingSpecial) return
   if(x<0 || x>=SIZE || y<0 || y>=SIZE) return
   
+  // Проверка туториала перед обработкой клика
+  if (typeof TutorialManager !== 'undefined' && TutorialManager.isActive) {
+    if (!TutorialManager.onCellClickHook(x, y)) {
+      return;
+    }
+  }
+  
   lastClickTime = now
   
   if(!selected){
@@ -1037,12 +929,24 @@ async function onCellClick(x, y){
     await Specials.activateWithDelay(b.x, b.y, null, swipeDir)
     board[b.y][b.x] = null
     hasSpecialActivated = true
+    
+    // Интеграция с туториалом - отмечаем активацию спец-фишки
+    if (typeof TutorialManager !== 'undefined') {
+      const specialType = SpecialComboManager.getSpecialType(cellB);
+      TutorialManager.onSpecialActivated(specialType);
+    }
   }
   
   if(!hasSpecialActivated && cellA && SpecialComboManager.isSpecial(cellA)){
     await Specials.activateWithDelay(a.x, a.y, null, swipeDir)
     board[a.y][a.x] = null
     hasSpecialActivated = true
+    
+    // Интеграция с туториалом - отмечаем активацию спец-фишки
+    if (typeof TutorialManager !== 'undefined') {
+      const specialType = SpecialComboManager.getSpecialType(cellA);
+      TutorialManager.onSpecialActivated(specialType);
+    }
   }
   
   if(hasSpecialActivated){
@@ -1224,8 +1128,10 @@ async function processMatchesAsync(){
         type: "special"
       }
       
-      // Показать визуальную подсказку при первом создании спец-фишки
-      TutorialSystem.showSpecialHint(specialType, specialCell.x, specialCell.y)
+      // Интеграция с туториалом - отмечаем создание спец-фишки
+      if (typeof TutorialManager !== 'undefined') {
+        TutorialManager.onSpecialCreated(specialType, specialCell.x, specialCell.y);
+      }
     }
     
     match.cells.forEach(cellPos => {
@@ -1423,6 +1329,11 @@ function swapTest(x1, y1, x2, y2){
 // ================= SHUFFLE =================
 
 async function shuffleBoardAsync(){
+  // Если активен туториал - не перемешиваем доску
+  if (typeof TutorialManager !== 'undefined' && TutorialManager.isActive) {
+    return;
+  }
+  
   do {
     for(let y=0; y<SIZE; y++){
       for(let x=0; x<SIZE; x++){
@@ -1453,6 +1364,9 @@ function startHintTimer(){
 }
 
 function showHint(){
+  // Если активен туториал - не показываем обычные подсказки
+  if (typeof TutorialManager !== 'undefined' && TutorialManager.isActive) return;
+  
   if(gameLocked || isAnimating || isProcessingSpecial) return
   
   for(let y=0; y<SIZE; y++){
@@ -1595,6 +1509,9 @@ function checkWin(){
     winLevel()
     return
   }
+  
+  // Не проигрываем во время туториала
+  if (typeof TutorialManager !== 'undefined' && TutorialManager.isActive) return;
   
   if(movesLeft <= 0){
     loseLevel()
