@@ -1,90 +1,144 @@
-// ================= TUTORIAL STORAGE =================
+// ==================== tutorial/tutorialStorage.js ====================
+
 const TutorialStorage = {
-  STORAGE_KEY: 'match3_tutorials',
+  STORAGE_KEY: 'match3_tutorial_data',
   
-  defaults: {
+  defaultData: {
     completedTutorials: {},
     skippedTutorials: {},
     shownTutorials: {},
     failedAttempts: {},
-    tutorialTimeSpent: {},
-    analytics: {
-      tutorial_started: {},
-      tutorial_completed: {},
-      tutorial_skipped: {},
-      tutorial_failed_attempts: {},
-      tutorial_time_spent: {}
+    analytics: {},
+    firstDiscoveries: {
+      rocket: false,
+      bomb: false,
+      rainbow: false
+    },
+    tutorialProgress: {
+      currentTutorial: null,
+      currentStep: 0
     }
   },
   
   init() {
-    const stored = localStorage.getItem(this.STORAGE_KEY);
-    if (!stored) {
-      this.save(this.defaults);
+    if (!localStorage.getItem(this.STORAGE_KEY)) {
+      this.saveData(this.defaultData);
     }
   },
   
   getData() {
-    const stored = localStorage.getItem(this.STORAGE_KEY);
-    return stored ? { ...this.defaults, ...JSON.parse(stored) } : this.defaults;
+    try {
+      const data = localStorage.getItem(this.STORAGE_KEY);
+      return data ? JSON.parse(data) : { ...this.defaultData };
+    } catch (e) {
+      console.error('TutorialStorage: Error reading data', e);
+      return { ...this.defaultData };
+    }
   },
   
-  save(data) {
-    localStorage.setItem(this.STORAGE_KEY, JSON.stringify(data));
+  saveData(data) {
+    try {
+      localStorage.setItem(this.STORAGE_KEY, JSON.stringify(data));
+    } catch (e) {
+      console.error('TutorialStorage: Error saving data', e);
+    }
   },
   
   isCompleted(tutorialId) {
     const data = this.getData();
-    return data.completedTutorials[tutorialId] === true;
+    return !!data.completedTutorials[tutorialId];
   },
   
   isSkipped(tutorialId) {
     const data = this.getData();
-    return data.skippedTutorials[tutorialId] === true;
+    return !!data.skippedTutorials[tutorialId];
   },
   
   isShown(tutorialId) {
     const data = this.getData();
-    return data.shownTutorials[tutorialId] === true;
+    return !!data.shownTutorials[tutorialId];
   },
   
   markCompleted(tutorialId) {
     const data = this.getData();
-    data.completedTutorials[tutorialId] = true;
-    this.save(data);
-    this.trackEvent('tutorial_completed', tutorialId);
+    data.completedTutorials[tutorialId] = Date.now();
+    data.shownTutorials[tutorialId] = true;
+    this.saveData(data);
+    this.trackAnalytics(tutorialId, 'completed');
   },
   
   markSkipped(tutorialId) {
     const data = this.getData();
-    data.skippedTutorials[tutorialId] = true;
-    this.save(data);
-    this.trackEvent('tutorial_skipped', tutorialId);
+    data.skippedTutorials[tutorialId] = Date.now();
+    data.shownTutorials[tutorialId] = true;
+    this.saveData(data);
+    this.trackAnalytics(tutorialId, 'skipped');
   },
   
   markShown(tutorialId) {
     const data = this.getData();
     data.shownTutorials[tutorialId] = true;
-    this.save(data);
+    this.saveData(data);
   },
   
   addFailedAttempt(tutorialId) {
     const data = this.getData();
     data.failedAttempts[tutorialId] = (data.failedAttempts[tutorialId] || 0) + 1;
-    this.save(data);
-    this.trackEvent('tutorial_failed_attempts', tutorialId);
+    this.saveData(data);
+    this.trackAnalytics(tutorialId, 'failed_attempt');
   },
   
-  addTimeSpent(tutorialId, seconds) {
+  setFirstDiscovery(type) {
     const data = this.getData();
-    data.tutorialTimeSpent[tutorialId] = (data.tutorialTimeSpent[tutorialId] || 0) + seconds;
-    this.save(data);
+    if (data.firstDiscoveries[type] !== undefined) {
+      data.firstDiscoveries[type] = true;
+      this.saveData(data);
+    }
   },
   
-  trackEvent(eventName, tutorialId) {
+  hasFirstDiscovery(type) {
     const data = this.getData();
-    data.analytics[eventName][tutorialId] = (data.analytics[eventName][tutorialId] || 0) + 1;
-    this.save(data);
+    return !!data.firstDiscoveries[type];
+  },
+  
+  trackAnalytics(tutorialId, event) {
+    const data = this.getData();
+    if (!data.analytics[tutorialId]) {
+      data.analytics[tutorialId] = {
+        started: null,
+        completed: null,
+        skipped: null,
+        failedAttempts: 0,
+        totalTime: 0,
+        events: []
+      };
+    }
+    
+    data.analytics[tutorialId].events.push({
+      event,
+      timestamp: Date.now()
+    });
+    
+    if (event === 'started') {
+      data.analytics[tutorialId].started = Date.now();
+    } else if (event === 'completed') {
+      data.analytics[tutorialId].completed = Date.now();
+      if (data.analytics[tutorialId].started) {
+        data.analytics[tutorialId].totalTime += 
+          Date.now() - data.analytics[tutorialId].started;
+      }
+    } else if (event === 'skipped') {
+      data.analytics[tutorialId].skipped = Date.now();
+    } else if (event === 'failed_attempt') {
+      data.analytics[tutorialId].failedAttempts++;
+    }
+    
+    this.saveData(data);
+  },
+  
+  getAnalytics(tutorialId) {
+    const data = this.getData();
+    return data.analytics[tutorialId] || null;
   },
   
   resetAll() {
@@ -98,7 +152,7 @@ const TutorialStorage = {
     delete data.skippedTutorials[tutorialId];
     delete data.shownTutorials[tutorialId];
     delete data.failedAttempts[tutorialId];
-    delete data.tutorialTimeSpent[tutorialId];
-    this.save(data);
+    delete data.analytics[tutorialId];
+    this.saveData(data);
   }
 };
