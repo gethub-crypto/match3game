@@ -1,176 +1,315 @@
-// ================= TUTORIAL OVERLAY =================
+// ==================== tutorial/tutorialOverlay.js ====================
+
 const TutorialOverlay = {
   overlay: null,
   popup: null,
-  dimOverlay: null,
+  highlightElements: [],
   
   init() {
-    // Затемняющий слой
-    this.dimOverlay = document.createElement('div');
-    this.dimOverlay.className = 'tutorial-dim';
-    this.dimOverlay.style.display = 'none';
-    document.getElementById('game').appendChild(this.dimOverlay);
-    
-    // Оверлей для попапов
+    this.createOverlay();
+    this.createPopup();
+  },
+  
+  createOverlay() {
     this.overlay = document.createElement('div');
+    this.overlay.id = 'tutorialOverlay';
     this.overlay.className = 'tutorial-overlay';
     this.overlay.style.display = 'none';
     document.body.appendChild(this.overlay);
-  },
-  
-  showDim() {
-    if (!this.dimOverlay) this.init();
-    this.dimOverlay.style.display = 'block';
-  },
-  
-  hideDim() {
-    if (this.dimOverlay) this.dimOverlay.style.display = 'none';
-  },
-  
-  showPopup(config) {
-    if (!this.overlay) this.init();
     
-    this.overlay.innerHTML = `
-      <div class="tutorial-popup animate-slide-in">
-        <div class="tutorial-popup-icon">${config.icon || '📚'}</div>
-        <h2 class="tutorial-popup-title">${config.title || ''}</h2>
-        <p class="tutorial-popup-description">${config.description || ''}</p>
-        ${config.preview ? `<div class="tutorial-popup-preview">${config.preview}</div>` : ''}
-        <div class="tutorial-popup-buttons">
-          <button class="tutorial-btn tutorial-btn-primary" id="tutorialStartBtn">
-            ${config.startText || 'Продолжить'}
-          </button>
-          ${config.showSkip !== false ? `
-            <button class="tutorial-btn tutorial-btn-secondary" id="tutorialSkipBtn">
-              Пропустить
-            </button>
-          ` : ''}
-        </div>
-        ${config.reward ? `
-          <div class="tutorial-reward">
-            🎁 Награда: ${config.reward.coins || 0} монет
-          </div>
-        ` : ''}
-      </div>
-    `;
-    
-    this.overlay.style.display = 'flex';
-    
-    return new Promise((resolve) => {
-      document.getElementById('tutorialStartBtn').addEventListener('click', () => {
-        this.hidePopup();
-        resolve('start');
-      });
+    const style = document.createElement('style');
+    style.textContent = `
+      .tutorial-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.7);
+        z-index: 9998;
+        pointer-events: all;
+      }
       
-      const skipBtn = document.getElementById('tutorialSkipBtn');
-      if (skipBtn) {
-        skipBtn.addEventListener('click', () => {
-          this.hidePopup();
-          resolve('skip');
-        });
+      .tutorial-highlight {
+        position: absolute;
+        border: 3px solid #FFD700;
+        border-radius: 10px;
+        box-shadow: 0 0 20px rgba(255, 215, 0, 0.6),
+                    0 0 40px rgba(255, 215, 0, 0.3),
+                    inset 0 0 20px rgba(255, 215, 0, 0.2);
+        animation: tutorialGlow 1.5s ease-in-out infinite;
+        z-index: 9999;
+        pointer-events: none;
+      }
+      
+      @keyframes tutorialGlow {
+        0%, 100% { 
+          box-shadow: 0 0 20px rgba(255, 215, 0, 0.6),
+                      0 0 40px rgba(255, 215, 0, 0.3),
+                      inset 0 0 20px rgba(255, 215, 0, 0.2);
+        }
+        50% { 
+          box-shadow: 0 0 30px rgba(255, 215, 0, 0.8),
+                      0 0 60px rgba(255, 215, 0, 0.5),
+                      inset 0 0 30px rgba(255, 215, 0, 0.4);
+        }
+      }
+      
+      .tutorial-highlight-pulse {
+        animation: tutorialPulse 1s ease-in-out infinite;
+      }
+      
+      @keyframes tutorialPulse {
+        0%, 100% { transform: scale(1); }
+        50% { transform: scale(1.05); }
+      }
+      
+      .tutorial-dimmed {
+        filter: brightness(0.3);
+        transition: filter 0.3s ease;
+      }
+      
+      .tutorial-popup {
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border-radius: 20px;
+        padding: 30px;
+        z-index: 10001;
+        min-width: 320px;
+        max-width: 500px;
+        text-align: center;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+        animation: popupSlideIn 0.3s ease-out;
+      }
+      
+      @keyframes popupSlideIn {
+        from {
+          opacity: 0;
+          transform: translate(-50%, -50%) scale(0.8);
+        }
+        to {
+          opacity: 1;
+          transform: translate(-50%, -50%) scale(1);
+        }
+      }
+      
+      .tutorial-popup-icon {
+        font-size: 64px;
+        margin-bottom: 15px;
+        animation: iconBounce 1s ease-in-out infinite;
+      }
+      
+      @keyframes iconBounce {
+        0%, 100% { transform: translateY(0); }
+        50% { transform: translateY(-10px); }
+      }
+      
+      .tutorial-popup-title {
+        font-size: 24px;
+        font-weight: bold;
+        color: #fff;
+        margin-bottom: 10px;
+        text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+      }
+      
+      .tutorial-popup-description {
+        font-size: 16px;
+        color: rgba(255, 255, 255, 0.9);
+        margin-bottom: 20px;
+        line-height: 1.5;
+      }
+      
+      .tutorial-popup-btn {
+        background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        color: white;
+        border: none;
+        padding: 12px 40px;
+        border-radius: 25px;
+        font-size: 18px;
+        font-weight: bold;
+        cursor: pointer;
+        transition: transform 0.2s, box-shadow 0.2s;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+      }
+      
+      .tutorial-popup-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+      }
+      
+      .tutorial-skip-btn {
+        background: transparent;
+        border: 2px solid rgba(255, 255, 255, 0.5);
+        color: rgba(255, 255, 255, 0.7);
+        padding: 8px 25px;
+        border-radius: 25px;
+        font-size: 14px;
+        cursor: pointer;
+        margin-top: 15px;
+        transition: all 0.2s;
+      }
+      
+      .tutorial-skip-btn:hover {
+        border-color: rgba(255, 255, 255, 0.8);
+        color: rgba(255, 255, 255, 0.9);
+      }
+      
+      .tutorial-arrow {
+        position: absolute;
+        color: #FFD700;
+        font-size: 36px;
+        animation: arrowBounce 1s ease-in-out infinite;
+        z-index: 9999;
+        pointer-events: none;
+      }
+      
+      @keyframes arrowBounce {
+        0%, 100% { transform: translateY(0); }
+        50% { transform: translateY(-15px); }
+      }
+    `;
+    document.head.appendChild(style);
+  },
+  
+  createPopup() {
+    this.popup = document.createElement('div');
+    this.popup.id = 'tutorialPopup';
+    this.popup.className = 'tutorial-popup';
+    this.popup.style.display = 'none';
+    document.body.appendChild(this.popup);
+  },
+  
+  showOverlay() {
+    if (this.overlay) {
+      this.overlay.style.display = 'block';
+    }
+  },
+  
+  hideOverlay() {
+    if (this.overlay) {
+      this.overlay.style.display = 'none';
+    }
+    this.clearHighlights();
+  },
+  
+  highlightCells(cells, animate = true) {
+    this.clearHighlights();
+    
+    cells.forEach(cellElement => {
+      if (!cellElement) return;
+      
+      const rect = cellElement.getBoundingClientRect();
+      const highlight = document.createElement('div');
+      highlight.className = 'tutorial-highlight' + (animate ? ' tutorial-highlight-pulse' : '');
+      highlight.style.left = (rect.left - 5) + 'px';
+      highlight.style.top = (rect.top - 5) + 'px';
+      highlight.style.width = (rect.width + 10) + 'px';
+      highlight.style.height = (rect.height + 10) + 'px';
+      
+      document.body.appendChild(highlight);
+      this.highlightElements.push(highlight);
+    });
+  },
+  
+  dimOtherCells(keepCells) {
+    const allCells = document.querySelectorAll('.cell');
+    allCells.forEach(cell => {
+      if (!keepCells.includes(cell)) {
+        cell.classList.add('tutorial-dimmed');
+      } else {
+        cell.classList.remove('tutorial-dimmed');
       }
     });
   },
   
-  showWrongMovePopup(message) {
-    if (!this.overlay) this.init();
+  showPopup(config) {
+    if (!this.popup) return;
     
-    const existing = document.querySelector('.tutorial-wrong-move');
-    if (existing) existing.remove();
+    const { title, description, icon, onContinue, onSkip } = config;
     
-    const popup = document.createElement('div');
-    popup.className = 'tutorial-wrong-move';
-    popup.innerHTML = `
-      <div class="tutorial-wrong-content">
-        <span class="tutorial-wrong-icon">⚠️</span>
-        <p>${message}</p>
-      </div>
+    this.popup.innerHTML = `
+      ${icon ? `<div class="tutorial-popup-icon">${icon}</div>` : ''}
+      <div class="tutorial-popup-title">${title || ''}</div>
+      <div class="tutorial-popup-description">${description || ''}</div>
+      <button class="tutorial-popup-btn" id="tutorialContinueBtn">
+        ${config.continueText || 'Continue'}
+      </button>
+      ${config.showSkip !== false ? `
+        <br>
+        <button class="tutorial-skip-btn" id="tutorialSkipBtn">Skip Tutorial</button>
+      ` : ''}
     `;
     
-    document.getElementById('board').appendChild(popup);
+    this.popup.style.display = 'block';
     
-    setTimeout(() => popup.remove(), 2000);
-  },
-  
-  showCompletionPopup(config) {
-    if (!this.overlay) this.init();
+    document.getElementById('tutorialContinueBtn')?.addEventListener('click', () => {
+      this.hidePopup();
+      if (onContinue) onContinue();
+    });
     
-    this.overlay.innerHTML = `
-      <div class="tutorial-popup animate-slide-in tutorial-complete">
-        <div class="tutorial-popup-icon">🎉</div>
-        <h2 class="tutorial-popup-title">Отлично!</h2>
-        <p class="tutorial-popup-description">${config.completionMessage || 'Вы успешно прошли обучение!'}</p>
-        ${config.reward ? `
-          <div class="tutorial-reward earned">
-            🎁 Получено: ${config.reward.coins || 0} монет
-          </div>
-        ` : ''}
-        <button class="tutorial-btn tutorial-btn-primary" id="tutorialCompleteBtn">
-          Продолжить
-        </button>
-      </div>
-    `;
-    
-    this.overlay.style.display = 'flex';
-    
-    return new Promise((resolve) => {
-      document.getElementById('tutorialCompleteBtn').addEventListener('click', () => {
-        this.hidePopup();
-        resolve();
-      });
+    document.getElementById('tutorialSkipBtn')?.addEventListener('click', () => {
+      this.hidePopup();
+      if (onSkip) onSkip();
     });
   },
   
   hidePopup() {
-    if (this.overlay) {
-      this.overlay.style.display = 'none';
-      this.overlay.innerHTML = '';
+    if (this.popup) {
+      this.popup.style.display = 'none';
     }
-  },
-  
-  highlightCells(positions) {
-    positions.forEach(pos => {
-      const cell = cells[pos.y]?.[pos.x];
-      if (cell) {
-        cell.classList.add('tutorial-highlight-cell');
-      }
-    });
   },
   
   clearHighlights() {
-    document.querySelectorAll('.tutorial-highlight-cell').forEach(cell => {
-      cell.classList.remove('tutorial-highlight-cell');
-    });
+    this.highlightElements.forEach(el => el.remove());
+    this.highlightElements = [];
+    
+    const allCells = document.querySelectorAll('.cell');
+    allCells.forEach(cell => cell.classList.remove('tutorial-dimmed'));
   },
   
-  dimAllExcept(positions) {
-    const posSet = new Set(positions.map(p => `${p.x},${p.y}`));
+  showWrongMoveEffect(cells) {
+    cells.forEach(cell => {
+      if (!cell) return;
+      cell.style.animation = 'none';
+      cell.offsetHeight; // Trigger reflow
+      cell.style.animation = 'shake 0.5s ease-in-out';
+    });
     
-    for (let y = 0; y < SIZE; y++) {
-      for (let x = 0; x < SIZE; x++) {
-        const cell = cells[y]?.[x];
-        if (cell) {
-          if (!posSet.has(`${x},${y}`)) {
-            cell.classList.add('tutorial-dimmed');
-          } else {
-            cell.classList.remove('tutorial-dimmed');
-          }
+    setTimeout(() => {
+      cells.forEach(cell => {
+        if (cell) cell.style.animation = '';
+      });
+    }, 500);
+    
+    // Добавляем стиль shake если его нет
+    if (!document.getElementById('tutorialShakeStyle')) {
+      const style = document.createElement('style');
+      style.id = 'tutorialShakeStyle';
+      style.textContent = `
+        @keyframes shake {
+          0%, 100% { transform: translateX(0); }
+          10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
+          20%, 40%, 60%, 80% { transform: translateX(5px); }
         }
-      }
+      `;
+      document.head.appendChild(style);
     }
   },
   
-  clearDimAll() {
-    document.querySelectorAll('.tutorial-dimmed').forEach(cell => {
-      cell.classList.remove('tutorial-dimmed');
-    });
-  },
-  
-  shakeCell(x, y) {
-    const cell = cells[y]?.[x];
-    if (!cell) return;
-    
-    cell.classList.add('tutorial-shake');
-    setTimeout(() => cell.classList.remove('tutorial-shake'), 500);
+  destroy() {
+    this.hideOverlay();
+    this.hidePopup();
+    this.clearHighlights();
+    if (this.overlay && this.overlay.parentNode) {
+      this.overlay.parentNode.removeChild(this.overlay);
+    }
+    if (this.popup && this.popup.parentNode) {
+      this.popup.parentNode.removeChild(this.popup);
+    }
+    this.overlay = null;
+    this.popup = null;
   }
 };
