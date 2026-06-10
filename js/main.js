@@ -131,14 +131,14 @@ const SpecialComboManager = {
     
     console.log(`⚡ Special Combo: ${typeA} + ${typeB} at [${posA.x},${posA.y}] & [${posB.x},${posB.y}]`)
     
-    const comboKey = [typeA, typeB].sort().join('_')
-    
-    // Интеграция с туториалом - отмечаем активацию комбо
-    if (typeof TutorialManager !== 'undefined') {
-      TutorialManager.onComboActivated(comboKey)
+    // 🎯 TUTORIAL: Проверяем триггер комбинации спец-фишек
+    if (!TutorialManager.isActive || TutorialManager.currentTutorial?.type === 'combo') {
+      TutorialManager.onComboAvailable(typeA, typeB)
     }
     
     this.processedSpecials.clear()
+    
+    const comboKey = [typeA, typeB].sort().join('_')
     
     switch(comboKey) {
       case 'rocket_rocket':
@@ -537,18 +537,18 @@ const SpecialComboManager = {
 
 async function init(){
   InputManager.init();
-  LivesSystem.init();
-  
-  // Инициализация туториала (если модуль загружен)
-  if (typeof TutorialManager !== 'undefined') {
-    TutorialManager.init();
-  }
-  
+  LivesSystem.init()
   await Levels.load()
   updateScreens()
   updateCoinsUI()
   
   setupGlobalMouseHandlers();
+  
+  // 🎯 TUTORIAL: Инициализация системы туториала
+  if (typeof TutorialManager !== 'undefined') {
+    TutorialManager.init();
+    console.log('📚 Tutorial system initialized');
+  }
 }
 
 window.onload = init
@@ -583,15 +583,18 @@ function initLevel(){
   
   collectProgress = {}
   
+  // 🎯 TUTORIAL: Проверяем триггеры туториала при старте уровня
+  if (typeof TutorialManager !== 'undefined' && !TutorialManager.isActive) {
+    // Небольшая задержка, чтобы экран игры успел отобразиться
+    setTimeout(() => {
+      TutorialManager.onLevelStart(currentLevel);
+    }, 500);
+  }
+  
   createBoard()
   startGameplay()
   initCollectTracker()
   startHintTimer()
-  
-  // Проверка туториалов для текущего уровня
-  if (typeof TutorialManager !== 'undefined' && !TutorialManager.isActive) {
-    TutorialManager.checkLevelTutorials();
-  }
 }
 
 
@@ -612,30 +615,54 @@ function createBoard(){
   board = []
   cells = []
   
-  for(let y=0; y<SIZE; y++){
-    board[y] = []
-    cells[y] = []
-    
-    for(let x=0; x<SIZE; x++){
-      let color
+  // 🎯 TUTORIAL: Если активен туториал, не генерируем случайную доску
+  if (typeof TutorialManager !== 'undefined' && TutorialManager.isActive && TutorialManager.tutorialBoard) {
+    board = TutorialManager.tutorialBoard.map(row => [...row]);
+  } else {
+    for(let y=0; y<SIZE; y++){
+      board[y] = []
+      cells[y] = []
       
-      do{
-        color = randomColor()
-        board[y][x] = color
+      for(let x=0; x<SIZE; x++){
+        let color
+        
+        do{
+          color = randomColor()
+          board[y][x] = color
+        }
+        while(hasMatchAt(x,y))
       }
-      while(hasMatchAt(x,y))
-      
+    }
+  }
+  
+  // Создаем DOM элементы для всех клеток
+  cells = []
+  for(let y=0; y<SIZE; y++){
+    cells[y] = []
+    for(let x=0; x<SIZE; x++){
       const cell = document.createElement("div")
       cell.className = "cell"
       cell.dataset.x = x
       cell.dataset.y = y
       
-      setColor(cell, color)
+      if (board[y] && board[y][x] !== undefined) {
+        setColor(cell, board[y][x])
+      }
+      
       setupCrossPlatformInput(cell, x, y)
       
       boardEl.appendChild(cell)
       cells[y][x] = cell
     }
+  }
+  
+  // 🎯 TUTORIAL: Подсвечиваем целевые клетки если туториал активен
+  if (typeof TutorialManager !== 'undefined' && TutorialManager.isActive) {
+    setTimeout(() => {
+      if (TutorialManager.highlightTargetCells) {
+        TutorialManager.highlightTargetCells();
+      }
+    }, 300);
   }
 }
 
@@ -856,6 +883,12 @@ async function onCellClick(x, y){
   
   lastClickTime = now
   
+  // 🎯 TUTORIAL: Обработка кликов во время туториала
+  if (typeof TutorialManager !== 'undefined' && TutorialManager.isActive) {
+    await handleTutorialClick(x, y);
+    return;
+  }
+  
   if(!selected){
     selected = {x, y}
     highlightCell(x, y)
@@ -869,15 +902,6 @@ async function onCellClick(x, y){
     clearHighlight()
     selected = null
     return
-  }
-  
-  // Проверка туториала ТОЛЬКО при активном туториале
-  if (typeof TutorialManager !== 'undefined' && TutorialManager.isActive) {
-    if (!TutorialManager.onCellClickHook(x, y)) {
-      clearHighlight()
-      selected = null
-      return;
-    }
   }
   
   ComboManager.reset()
@@ -930,29 +954,25 @@ async function onCellClick(x, y){
   if(cellB && SpecialComboManager.isSpecial(cellB)){
     await Specials.activateWithDelay(b.x, b.y, null, swipeDir)
     board[b.y][b.x] = null
-    hasSpecialActivated = true
     
-    // Интеграция с туториалом - отмечаем активацию спец-фишки
+    // 🎯 TUTORIAL: Проверяем триггер активации спец-фишки
     if (typeof TutorialManager !== 'undefined') {
-      const specialType = SpecialComboManager.getSpecialType(cellB);
-      if (specialType) {
-        TutorialManager.onSpecialActivated(specialType);
-      }
+      TutorialManager.onSpecialActivated(SpecialComboManager.getSpecialType(cellB));
     }
+    
+    hasSpecialActivated = true
   }
   
   if(!hasSpecialActivated && cellA && SpecialComboManager.isSpecial(cellA)){
     await Specials.activateWithDelay(a.x, a.y, null, swipeDir)
     board[a.y][a.x] = null
-    hasSpecialActivated = true
     
-    // Интеграция с туториалом - отмечаем активацию спец-фишки
+    // 🎯 TUTORIAL: Проверяем триггер активации спец-фишки
     if (typeof TutorialManager !== 'undefined') {
-      const specialType = SpecialComboManager.getSpecialType(cellA);
-      if (specialType) {
-        TutorialManager.onSpecialActivated(specialType);
-      }
+      TutorialManager.onSpecialActivated(SpecialComboManager.getSpecialType(cellA));
     }
+    
+    hasSpecialActivated = true
   }
   
   if(hasSpecialActivated){
@@ -1001,13 +1021,137 @@ async function onCellClick(x, y){
   ComboManager.reset()
 }
 
+// 🎯 TUTORIAL: Обработчик кликов во время туториала
+async function handleTutorialClick(x, y) {
+  if (!selected) {
+    selected = { x, y }
+    highlightCell(x, y)
+    return
+  }
+  
+  const dx = Math.abs(selected.x - x)
+  const dy = Math.abs(selected.y - y)
+  
+  if (dx + dy !== 1) {
+    clearHighlight()
+    selected = null
+    return
+  }
+  
+  const fromX = selected.x
+  const fromY = selected.y
+  const toX = x
+  const toY = y
+  
+  clearHighlight()
+  selected = null
+  
+  // Проверяем, разрешен ли этот ход в туториале
+  if (!TutorialManager.isMoveAllowed(fromX, fromY, toX, toY)) {
+    const cellA = cells[fromY]?.[fromX]
+    const cellB = cells[toY]?.[toX]
+    TutorialManager.handleWrongMove(cellA, cellB)
+    return
+  }
+  
+  // Выполняем правильный ход
+  isAnimating = true
+  
+  const a = { x: fromX, y: fromY }
+  const b = { x: toX, y: toY }
+  
+  const A = board[a.y][a.x]
+  const B = board[b.y][b.x]
+  
+  board[a.y][a.x] = B
+  board[b.y][b.x] = A
+  
+  renderBoard()
+  await delay(200)
+  
+  const swipeDir = (a.x !== b.x) ? 'horizontal' : 'vertical'
+  
+  const cellA = board[a.y]?.[a.x]
+  const cellB = board[b.y]?.[b.x]
+  
+  // Обрабатываем комбинации спец-фишек
+  if (SpecialComboManager.isSpecial(cellA) && SpecialComboManager.isSpecial(cellB)) {
+    await SpecialComboManager.handleSpecialSwap(cellA, cellB, a, b, swipeDir)
+    
+    await dropWithDelay(150)
+    await spawnNewWithDelay(150)
+    renderBoard()
+    
+    ComboManager.firstMatchInChain = false
+    ComboManager.comboActive = true
+    
+    await processMatchesAsync()
+  } else {
+    // Обрабатываем обычные матчи
+    let hasSpecialActivated = false
+    
+    if (cellB && SpecialComboManager.isSpecial(cellB)) {
+      await Specials.activateWithDelay(b.x, b.y, null, swipeDir)
+      board[b.y][b.x] = null
+      hasSpecialActivated = true
+    }
+    
+    if (!hasSpecialActivated && cellA && SpecialComboManager.isSpecial(cellA)) {
+      await Specials.activateWithDelay(a.x, a.y, null, swipeDir)
+      board[a.y][a.x] = null
+      hasSpecialActivated = true
+    }
+    
+    if (hasSpecialActivated) {
+      await dropWithDelay(150)
+      await spawnNewWithDelay(150)
+      renderBoard()
+      
+      ComboManager.firstMatchInChain = false
+      ComboManager.comboActive = true
+      
+      await processMatchesAsync()
+    } else {
+      let matches = MatchDetection.getMatches(board)
+      
+      if (matches.length === 0) {
+        // Отменяем ход
+        board[a.y][a.x] = A
+        board[b.y][b.x] = B
+        renderBoard()
+        
+        await delay(150)
+        
+        const cellA = cells[fromY]?.[fromX]
+        const cellB = cells[toY]?.[toX]
+        TutorialManager.handleWrongMove(cellA, cellB)
+        
+        isAnimating = false
+        return
+      }
+      
+      await processMatchesAsync()
+    }
+  }
+  
+  updateHUD()
+  
+  // Сообщаем туториалу об успешном ходе
+  TutorialManager.handleCorrectMove()
+  
+  isAnimating = false
+  ComboManager.reset()
+}
+
 
 // ================= RENDER =================
 
 function renderBoard(){
   for(let y=0; y<SIZE; y++){
     for(let x=0; x<SIZE; x++){
-      setColor(cells[y][x], board[y][x])
+      if (cells[y] && cells[y][x] && board[y] && board[y][x] !== undefined) {
+        setColor(cells[y][x], board[y][x])
+      }
     }
   }
 }
@@ -1071,7 +1215,10 @@ async function processMatchesAsync(){
   
   if(matches.length === 0){
     if(!hasPossibleMoves()){
-      await shuffleBoardAsync()
+      // 🎯 TUTORIAL: Не перемешиваем доску во время туториала
+      if (typeof TutorialManager === 'undefined' || !TutorialManager.isActive) {
+        await shuffleBoardAsync()
+      }
     }
     return
   }
@@ -1134,9 +1281,9 @@ async function processMatchesAsync(){
         type: "special"
       }
       
-      // Интеграция с туториалом - отмечаем создание спец-фишки
+      // 🎯 TUTORIAL: Проверяем триггер создания спец-фишки
       if (typeof TutorialManager !== 'undefined') {
-        TutorialManager.onSpecialCreated(specialType, specialCell.x, specialCell.y);
+        TutorialManager.onSpecialCreated(specialType);
       }
     }
     
@@ -1178,9 +1325,12 @@ async function dropWithDelay(baseDelay = 150){
       }
     }
     
-    for(let y=0; y<emptySpaces; y++){
-      board[y][x] = randomColor()
-      changed = true
+    // 🎯 TUTORIAL: Не заполняем пустые места случайными цветами во время туториала
+    if (typeof TutorialManager === 'undefined' || !TutorialManager.isActive) {
+      for(let y=0; y<emptySpaces; y++){
+        board[y][x] = randomColor()
+        changed = true
+      }
     }
   }
   
@@ -1191,6 +1341,11 @@ async function dropWithDelay(baseDelay = 150){
 }
 
 async function spawnNewWithDelay(baseDelay = 150){
+  // 🎯 TUTORIAL: Не спавним новые фишки во время туториала
+  if (typeof TutorialManager !== 'undefined' && TutorialManager.isActive) {
+    return;
+  }
+  
   let changed = false
   
   for(let y=0; y<SIZE; y++){
@@ -1301,6 +1456,11 @@ async function showRainbowEffect(){
 // ================= POSSIBLE MOVES =================
 
 function hasPossibleMoves(){
+  // 🎯 TUTORIAL: Во время туториала всегда говорим что ходы есть
+  if (typeof TutorialManager !== 'undefined' && TutorialManager.isActive) {
+    return true;
+  }
+  
   for(let y=0; y<SIZE; y++){
     for(let x=0; x<SIZE; x++){
       if(x < SIZE-1){
@@ -1335,7 +1495,7 @@ function swapTest(x1, y1, x2, y2){
 // ================= SHUFFLE =================
 
 async function shuffleBoardAsync(){
-  // Если активен туториал - не перемешиваем доску
+  // 🎯 TUTORIAL: Не перемешиваем доску во время туториала
   if (typeof TutorialManager !== 'undefined' && TutorialManager.isActive) {
     return;
   }
@@ -1353,6 +1513,11 @@ async function shuffleBoardAsync(){
 }
 
 function shuffleBoard(){
+  // 🎯 TUTORIAL: Не перемешиваем доску во время туториала
+  if (typeof TutorialManager !== 'undefined' && TutorialManager.isActive) {
+    return;
+  }
+  
   for(let y=0; y<SIZE; y++){
     for(let x=0; x<SIZE; x++){
       board[y][x] = randomColor()
@@ -1366,14 +1531,22 @@ function shuffleBoard(){
 
 function startHintTimer(){
   clearTimeout(hintTimer)
+  
+  // 🎯 TUTORIAL: Не показываем обычные подсказки во время туториала
+  if (typeof TutorialManager !== 'undefined' && TutorialManager.isActive) {
+    return;
+  }
+  
   hintTimer = setTimeout(showHint, 4000)
 }
 
 function showHint(){
-  // Если активен туториал - не показываем обычные подсказки
-  if (typeof TutorialManager !== 'undefined' && TutorialManager.isActive) return;
-  
   if(gameLocked || isAnimating || isProcessingSpecial) return
+  
+  // 🎯 TUTORIAL: Не показываем обычные подсказки во время туториала
+  if (typeof TutorialManager !== 'undefined' && TutorialManager.isActive) {
+    return;
+  }
   
   for(let y=0; y<SIZE; y++){
     for(let x=0; x<SIZE; x++){
@@ -1507,6 +1680,11 @@ function updateCollectTracker(color) {
 function checkWin(){
   if(levelFinished) return
   
+  // 🎯 TUTORIAL: Не проверяем условия победы во время туториала
+  if (typeof TutorialManager !== 'undefined' && TutorialManager.isActive) {
+    return;
+  }
+  
   const allColorsComplete = levelData.colors.every(color => {
     return (collectProgress[color] || 0) >= levelData.target
   })
@@ -1515,9 +1693,6 @@ function checkWin(){
     winLevel()
     return
   }
-  
-  // Не проигрываем во время туториала
-  if (typeof TutorialManager !== 'undefined' && TutorialManager.isActive) return;
   
   if(movesLeft <= 0){
     loseLevel()
