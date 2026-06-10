@@ -223,17 +223,24 @@ const TutorialManager = {
     // Блокируем игру
     this.lockGame();
     
-    // Показываем оверлей
+    // Загружаем доску туториала ПЕРЕД показом попапа
+    this.loadTutorialBoard(tutorial);
+    
+    // Показываем оверлей и подсветку
     TutorialOverlay.showOverlay();
+    this.highlightTargetCells();
+    this.dimOtherCells();
     
     // Показываем попап с описанием
     await this.showTutorialPopup(tutorial);
     
-    // Загружаем доску туториала
-    this.loadTutorialBoard(tutorial);
-    
-    // Показываем подсказки
+    // После закрытия попапа обновляем подсветку и запускаем подсказки
+    this.highlightTargetCells();
+    this.dimOtherCells();
     this.startHints();
+    
+    // Разблокируем игру для взаимодействия
+    this.unlockGameForInteraction();
   },
   
   saveGameState() {
@@ -277,10 +284,22 @@ const TutorialManager = {
     clearHints();
   },
   
+  unlockGameForInteraction() {
+    // Разблокируем только взаимодействие, но не всю игру
+    gameLocked = false;
+    isAnimating = false;
+    isProcessingSpecial = false;
+    levelFinished = false;
+    
+    console.log('🔓 Game unlocked for tutorial interaction');
+  },
+  
   unlockGame() {
     gameLocked = false;
     isAnimating = false;
     isProcessingSpecial = false;
+    
+    console.log('🔓 Game fully unlocked');
   },
   
   async showTutorialPopup(tutorial) {
@@ -292,6 +311,8 @@ const TutorialManager = {
         showSkip: true,
         continueText: 'Let\'s Try!',
         onContinue: () => {
+          // Скрываем попап, но оставляем оверлей и подсветку
+          TutorialOverlay.hidePopup();
           resolve();
         },
         onSkip: () => {
@@ -310,22 +331,53 @@ const TutorialManager = {
     }
     
     this.tutorialBoard = boardLayout;
-    board = boardLayout;
+    
+    // Копируем доску в глобальную переменную
+    board = boardLayout.map(row => [...row]);
     movesLeft = 999; // Бесконечные ходы для туториала
     levelFinished = false;
     
+    // Пересоздаем DOM элементы доски
+    this.recreateBoardDOM();
+    
     renderBoard();
     updateHUD();
+  },
+  
+  recreateBoardDOM() {
+    const boardEl = document.getElementById("board");
+    if (!boardEl) return;
     
-    // Подсвечиваем нужные клетки
-    this.highlightTargetCells();
+    boardEl.innerHTML = "";
+    cells = [];
     
-    // Затемняем остальные клетки
-    const targetCells = this.getTargetCellElements();
-    TutorialOverlay.dimOtherCells(targetCells);
+    for (let y = 0; y < SIZE; y++) {
+      cells[y] = [];
+      for (let x = 0; x < SIZE; x++) {
+        const cell = document.createElement("div");
+        cell.className = "cell";
+        cell.dataset.x = x;
+        cell.dataset.y = y;
+        
+        if (board[y] && board[y][x] !== undefined) {
+          setColor(cell, board[y][x]);
+        }
+        
+        setupCrossPlatformInput(cell, x, y);
+        
+        boardEl.appendChild(cell);
+        cells[y][x] = cell;
+      }
+    }
+    
+    console.log('🔄 Board DOM recreated for tutorial');
   },
   
   highlightTargetCells() {
+    if (!this.currentTutorial) return;
+    
+    TutorialOverlay.clearHighlights();
+    
     const allowedMoves = TutorialBoards.getAllowedMoves(this.currentTutorial.board);
     const cellsToHighlight = [];
     
@@ -338,7 +390,28 @@ const TutorialManager = {
       }
     });
     
-    TutorialOverlay.highlightCells(cellsToHighlight);
+    if (cellsToHighlight.length > 0) {
+      TutorialOverlay.highlightCells(cellsToHighlight, true);
+      console.log('✨ Highlighted', cellsToHighlight.length, 'cells for tutorial');
+    }
+  },
+  
+  dimOtherCells() {
+    if (!this.currentTutorial) return;
+    
+    const allowedMoves = TutorialBoards.getAllowedMoves(this.currentTutorial.board);
+    const keepCellElements = [];
+    
+    allowedMoves.forEach(move => {
+      if (cells[move.from.y] && cells[move.from.y][move.from.x]) {
+        keepCellElements.push(cells[move.from.y][move.from.x]);
+      }
+      if (cells[move.to.y] && cells[move.to.y][move.to.x]) {
+        keepCellElements.push(cells[move.to.y][move.to.x]);
+      }
+    });
+    
+    TutorialOverlay.dimOtherCells(keepCellElements);
   },
   
   getTargetCellElements() {
@@ -358,9 +431,15 @@ const TutorialManager = {
   },
   
   startHints() {
+    // Очищаем предыдущие таймеры
+    this.stopHints();
+    
+    console.log('💡 Starting tutorial hints...');
+    
     // Первая подсказка через 5 секунд
     this.hintTimer = setTimeout(() => {
       if (!this.isActive) return;
+      console.log('💡 Showing first hint...');
       this.showFirstHint();
     }, 5000);
   },
@@ -371,17 +450,26 @@ const TutorialManager = {
     const targetMove = TutorialBoards.getTargetMove(this.currentTutorial.board);
     if (!targetMove) return;
     
-    // Показываем стрелку или дополнительную подсветку
+    // Показываем анимацию на клетках
     const fromCell = cells[targetMove.from.y]?.[targetMove.from.x];
+    const toCell = cells[targetMove.to.y]?.[targetMove.to.x];
+    
     if (fromCell) {
       fromCell.style.animation = 'tutorialPulse 1s ease-in-out infinite';
+      console.log('💡 Pulsing from cell:', targetMove.from);
     }
     
-    // Запускаем таймер для Ghost Hand
+    if (toCell) {
+      toCell.style.animation = 'tutorialPulse 1s ease-in-out infinite';
+      console.log('💡 Pulsing to cell:', targetMove.to);
+    }
+    
+    // Запускаем таймер для Ghost Hand через 5 секунд
     this.ghostHandTimer = setTimeout(() => {
       if (!this.isActive) return;
+      console.log('👆 Showing ghost hand...');
       this.showGhostHand();
-    }, 10000);
+    }, 5000);
   },
   
   showGhostHand() {
@@ -395,11 +483,12 @@ const TutorialManager = {
     
     if (fromCell && toCell) {
       GhostHand.startRepeatAnimation(fromCell, toCell, 10000);
+      console.log('👆 Ghost hand animation started');
     }
   },
   
   validateMove(from, to) {
-    if (!this.isActive) return null;
+    if (!this.isActive || !this.currentTutorial) return { valid: false, message: 'Tutorial not active' };
     
     const allowedMoves = TutorialBoards.getAllowedMoves(this.currentTutorial.board);
     
@@ -421,6 +510,9 @@ const TutorialManager = {
   },
   
   handleWrongMove(cellA, cellB) {
+    if (!this.isActive || !this.currentTutorial) return;
+    
+    console.log('❌ Wrong move in tutorial');
     TutorialStorage.addFailedAttempt(this.currentTutorial.id);
     
     // Анимация неправильного хода
@@ -430,14 +522,27 @@ const TutorialManager = {
     
     TutorialOverlay.showWrongMoveEffect(cellsToShake);
     
-    // Показываем сообщение
+    // Показываем сообщение с подсказкой
+    const validation = this.validateMove(
+      { x: parseInt(cellA?.dataset?.x) || 0, y: parseInt(cellA?.dataset?.y) || 0 },
+      { x: parseInt(cellB?.dataset?.x) || 0, y: parseInt(cellB?.dataset?.y) || 0 }
+    );
+    
     setTimeout(() => {
+      if (!this.isActive) return;
+      
       TutorialOverlay.showPopup({
         title: 'Not Quite!',
-        description: this.validateMove({x: 0, y: 0}, {x: 0, y: 0}).message,
+        description: validation.message || 'Try the highlighted move!',
         icon: '🤔',
         showSkip: false,
-        continueText: 'Try Again'
+        continueText: 'Try Again',
+        onContinue: () => {
+          TutorialOverlay.hidePopup();
+          // Обновляем подсветку
+          this.highlightTargetCells();
+          this.dimOtherCells();
+        }
       });
     }, 500);
   },
@@ -454,6 +559,7 @@ const TutorialManager = {
       if (this.currentTutorial.reward.coins) {
         addCoins(this.currentTutorial.reward.coins);
         updateCoinsUI();
+        console.log('💰 Reward given:', this.currentTutorial.reward.coins, 'coins');
       }
     }
     
@@ -491,13 +597,28 @@ const TutorialManager = {
       this.ghostHandTimer = null;
     }
     GhostHand.hide();
+    
+    // Убираем анимации с клеток
+    for (let y = 0; y < SIZE; y++) {
+      for (let x = 0; x < SIZE; x++) {
+        if (cells[y] && cells[y][x]) {
+          cells[y][x].style.animation = '';
+        }
+      }
+    }
   },
   
   endTutorial() {
+    console.log('📚 Ending tutorial');
+    
     this.stopHints();
     TutorialOverlay.hideOverlay();
     TutorialOverlay.hidePopup();
     TutorialOverlay.clearHighlights();
+    
+    // Убираем затемнение со всех клеток
+    const allCells = document.querySelectorAll('.cell');
+    allCells.forEach(cell => cell.classList.remove('tutorial-dimmed'));
     
     // Восстанавливаем состояние игры
     this.restoreGameState();
@@ -510,6 +631,8 @@ const TutorialManager = {
     
     // Перезапускаем уровень
     initLevel();
+    
+    console.log('📚 Tutorial ended, game restored');
   },
   
   skipTutorial() {
@@ -523,6 +646,10 @@ const TutorialManager = {
     TutorialOverlay.hidePopup();
     TutorialOverlay.clearHighlights();
     
+    // Убираем затемнение со всех клеток
+    const allCells = document.querySelectorAll('.cell');
+    allCells.forEach(cell => cell.classList.remove('tutorial-dimmed'));
+    
     this.restoreGameState();
     this.unlockGame();
     
@@ -531,23 +658,33 @@ const TutorialManager = {
     this.tutorialBoard = null;
     
     initLevel();
+    
+    console.log('⏭️ Tutorial skipped, game restored');
   },
   
   // Интеграционные методы
   onLevelStart(level) {
-    this.checkTriggers('level_start', { level });
+    if (!this.isActive) {
+      this.checkTriggers('level_start', { level });
+    }
   },
   
   onSpecialCreated(specialType) {
-    this.checkTriggers('special_created', { specialType });
+    if (!this.isActive) {
+      this.checkTriggers('special_created', { specialType });
+    }
   },
   
   onSpecialActivated(specialType) {
-    this.checkTriggers('special_activated', { specialType });
+    if (!this.isActive) {
+      this.checkTriggers('special_activated', { specialType });
+    }
   },
   
   onComboAvailable(specialA, specialB) {
-    this.checkTriggers('combo_available', { specialA, specialB });
+    if (!this.isActive) {
+      this.checkTriggers('combo_available', { specialA, specialB });
+    }
   },
   
   isMoveAllowed(fromX, fromY, toX, toY) {
