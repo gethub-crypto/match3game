@@ -854,13 +854,6 @@ async function onCellClick(x, y){
   if(gameLocked || isAnimating || isProcessingSpecial) return
   if(x<0 || x>=SIZE || y<0 || y>=SIZE) return
   
-  // Проверка туториала перед обработкой клика
-  if (typeof TutorialManager !== 'undefined' && TutorialManager.isActive) {
-    if (!TutorialManager.onCellClickHook(x, y)) {
-      return;
-    }
-  }
-  
   lastClickTime = now
   
   if(!selected){
@@ -876,6 +869,15 @@ async function onCellClick(x, y){
     clearHighlight()
     selected = null
     return
+  }
+  
+  // Проверка туториала ТОЛЬКО при активном туториале
+  if (typeof TutorialManager !== 'undefined' && TutorialManager.isActive) {
+    if (!TutorialManager.onCellClickHook(x, y)) {
+      clearHighlight()
+      selected = null
+      return;
+    }
   }
   
   ComboManager.reset()
@@ -933,7 +935,9 @@ async function onCellClick(x, y){
     // Интеграция с туториалом - отмечаем активацию спец-фишки
     if (typeof TutorialManager !== 'undefined') {
       const specialType = SpecialComboManager.getSpecialType(cellB);
-      TutorialManager.onSpecialActivated(specialType);
+      if (specialType) {
+        TutorialManager.onSpecialActivated(specialType);
+      }
     }
   }
   
@@ -945,7 +949,9 @@ async function onCellClick(x, y){
     // Интеграция с туториалом - отмечаем активацию спец-фишки
     if (typeof TutorialManager !== 'undefined') {
       const specialType = SpecialComboManager.getSpecialType(cellA);
-      TutorialManager.onSpecialActivated(specialType);
+      if (specialType) {
+        TutorialManager.onSpecialActivated(specialType);
+      }
     }
   }
   
