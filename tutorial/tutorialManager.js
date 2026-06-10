@@ -1,508 +1,571 @@
-// ================= TUTORIAL MANAGER =================
+// ==================== tutorial/tutorialManager.js ====================
+
 const TutorialManager = {
   isActive: false,
   currentTutorial: null,
-  currentStep: 0,
-  startTime: null,
+  tutorialBoard: null,
+  boardBackup: null,
   hintTimer: null,
   ghostHandTimer: null,
-  tutorialLocked: true,
+  startTime: null,
   
   // Конфигурация всех туториалов
-  configs: [
-    {
-      id: 'swipe_basic',
-      type: 'basic',
-      title: 'Базовое перемещение',
-      description: 'Свайпните фишку, чтобы составить ряд из 3 одинаковых цветов.',
-      icon: '👆',
-      trigger: { type: 'level', level: 1 },
+  tutorials: {
+    basic_swipe: {
+      id: "basic_swipe",
+      type: "basic",
+      title: "Basic Swipe",
+      description: "Swipe to match 3 or more tiles of the same color!",
+      icon: "👆",
+      trigger: "level_1",
+      board: "basic_swipe",
       reward: { coins: 10 }
     },
-    {
-      id: 'rocket_create',
-      type: 'discovery',
-      specialType: 'rocket',
-      title: 'Ракета создана!',
-      description: 'Ракета очищает целую строку или столбец. Свайпните её в любом направлении.',
-      icon: '🚀',
-      trigger: { type: 'first_create', special: 'rocket' },
-      board: 'rocket_tutorial',
+    rocket_created: {
+      id: "rocket_created",
+      type: "discovery",
+      title: "Rocket Created!",
+      description: "Rockets clear an entire row or column! Match 4 tiles in a row to create one.",
+      icon: "🚀",
+      trigger: "first_create_rocket",
+      board: "rocket_tutorial",
       reward: { coins: 20 }
     },
-    {
-      id: 'bomb_create',
-      type: 'discovery',
-      specialType: 'bomb',
-      title: 'Бомба создана!',
-      description: 'Бомба взрывает область 3×3 вокруг себя. Свайпните её для активации.',
-      icon: '💣',
-      trigger: { type: 'first_create', special: 'bomb' },
-      board: 'bomb_tutorial',
+    bomb_created: {
+      id: "bomb_created",
+      type: "discovery",
+      title: "Bomb Created!",
+      description: "Bombs explode in a 3x3 area! Match tiles in L or T shape to create one.",
+      icon: "💣",
+      trigger: "first_create_bomb",
+      board: "bomb_tutorial",
       reward: { coins: 20 }
     },
-    {
-      id: 'rainbow_create',
-      type: 'discovery',
-      specialType: 'color',
-      title: 'Радуга создана!',
-      description: 'Радуга удаляет все фишки одного цвета. Свайпните с фишкой нужного цвета.',
-      icon: '🌈',
-      trigger: { type: 'first_create', special: 'color' },
-      board: 'rainbow_tutorial',
+    rainbow_created: {
+      id: "rainbow_created",
+      type: "discovery",
+      title: "Rainbow Created!",
+      description: "Rainbow tiles can match with any color! Match 5 tiles in a row to create one.",
+      icon: "🌈",
+      trigger: "first_create_rainbow",
+      board: "rainbow_tutorial",
       reward: { coins: 30 }
     },
-    {
-      id: 'rocket_activate',
-      type: 'activation',
-      specialType: 'rocket',
-      title: 'Активация ракеты',
-      description: 'Свайпните ракету в сторону, чтобы очистить ряд или столбец.',
-      icon: '🚀',
-      trigger: { type: 'first_activate', special: 'rocket' },
+    rocket_activation: {
+      id: "rocket_activation",
+      type: "activation",
+      title: "Rocket Activation",
+      description: "Swipe a Rocket to activate it and clear a whole line!",
+      icon: "🚀",
+      trigger: "first_activate_rocket",
+      board: "rocket_tutorial",
       reward: { coins: 15 }
     },
-    {
-      id: 'bomb_activate',
-      type: 'activation',
-      specialType: 'bomb',
-      title: 'Активация бомбы',
-      description: 'Свайпните бомбу для взрыва области 3×3.',
-      icon: '💣',
-      trigger: { type: 'first_activate', special: 'bomb' },
+    bomb_activation: {
+      id: "bomb_activation",
+      type: "activation",
+      title: "Bomb Activation",
+      description: "Swipe a Bomb to explode nearby tiles!",
+      icon: "💣",
+      trigger: "first_activate_bomb",
+      board: "bomb_tutorial",
       reward: { coins: 15 }
     },
-    {
-      id: 'rainbow_activate',
-      type: 'activation',
-      specialType: 'color',
-      title: 'Активация радуги',
-      description: 'Свайпните радугу с фишкой, цвет которой хотите удалить.',
-      icon: '🌈',
-      trigger: { type: 'first_activate', special: 'color' },
+    rainbow_activation: {
+      id: "rainbow_activation",
+      type: "activation",
+      title: "Rainbow Activation",
+      description: "Swipe a Rainbow with any color to collect all tiles of that color!",
+      icon: "🌈",
+      trigger: "first_activate_rainbow",
+      board: "rainbow_tutorial",
       reward: { coins: 20 }
     },
-    {
-      id: 'rocket_rocket_combo',
-      type: 'combo',
-      specialA: 'rocket',
-      specialB: 'rocket',
-      title: 'Ракета + Ракета',
-      description: 'Объедините две ракеты для мощного крестового удара!',
-      icon: '✚',
-      trigger: { type: 'first_combo', comboKey: 'rocket_rocket' },
-      board: 'rocket_rocket_tutorial',
+    rocket_rocket: {
+      id: "rocket_rocket",
+      type: "combo",
+      title: "Rocket + Rocket",
+      description: "Combine two Rockets to clear a cross shape on the board!",
+      icon: "🚀+🚀",
+      trigger: "first_combo_rocket_rocket",
+      board: "rocket_rocket_tutorial",
+      reward: { coins: 40 }
+    },
+    rocket_bomb: {
+      id: "rocket_bomb",
+      type: "combo",
+      title: "Rocket + Bomb",
+      description: "Combine a Rocket and Bomb for a massive directional explosion!",
+      icon: "🚀+💣",
+      trigger: "first_combo_rocket_bomb",
+      board: "rocket_bomb_tutorial",
+      reward: { coins: 40 }
+    },
+    rocket_rainbow: {
+      id: "rocket_rainbow",
+      type: "combo",
+      title: "Rocket + Rainbow",
+      description: "Turn all tiles of one color into Rockets and launch them all!",
+      icon: "🚀+🌈",
+      trigger: "first_combo_rocket_rainbow",
+      board: "rocket_rainbow_tutorial",
       reward: { coins: 50 }
     },
-    {
-      id: 'rocket_bomb_combo',
-      type: 'combo',
-      specialA: 'rocket',
-      specialB: 'bomb',
-      title: 'Ракета + Бомба',
-      description: 'Объедините ракету и бомбу для последовательной мощной атаки!',
-      icon: '⚡',
-      trigger: { type: 'first_combo', comboKey: 'bomb_rocket' },
-      board: 'rocket_bomb_tutorial',
+    bomb_bomb: {
+      id: "bomb_bomb",
+      type: "combo",
+      title: "Bomb + Bomb",
+      description: "Combine two Bombs for a mega explosion with extra rockets!",
+      icon: "💣+💣",
+      trigger: "first_combo_bomb_bomb",
+      board: "bomb_bomb_tutorial",
       reward: { coins: 50 }
     },
-    {
-      id: 'rocket_rainbow_combo',
-      type: 'combo',
-      specialA: 'rocket',
-      specialB: 'color',
-      title: 'Ракета + Радуга',
-      description: 'Все фишки выбранного цвета превратятся в ракеты!',
-      icon: '✨',
-      trigger: { type: 'first_combo', comboKey: 'color_rocket' },
-      board: 'rocket_rainbow_tutorial',
-      reward: { coins: 75 }
+    bomb_rainbow: {
+      id: "bomb_rainbow",
+      type: "combo",
+      title: "Bomb + Rainbow",
+      description: "Turn all tiles of one color into Bombs and detonate them!",
+      icon: "💣+🌈",
+      trigger: "first_combo_bomb_rainbow",
+      board: "bomb_rainbow_tutorial",
+      reward: { coins: 60 }
     },
-    {
-      id: 'bomb_bomb_combo',
-      type: 'combo',
-      specialA: 'bomb',
-      specialB: 'bomb',
-      title: 'Бомба + Бомба',
-      description: 'Создайте Мега-бомбу с огромным радиусом взрыва 5×5!',
-      icon: '💥',
-      trigger: { type: 'first_combo', comboKey: 'bomb_bomb' },
-      board: 'bomb_bomb_tutorial',
-      reward: { coins: 75 }
-    },
-    {
-      id: 'bomb_rainbow_combo',
-      type: 'combo',
-      specialA: 'bomb',
-      specialB: 'color',
-      title: 'Бомба + Радуга',
-      description: 'Все фишки выбранного цвета станут бомбами!',
-      icon: '🎆',
-      trigger: { type: 'first_combo', comboKey: 'bomb_color' },
-      board: 'bomb_rainbow_tutorial',
+    rainbow_rainbow: {
+      id: "rainbow_rainbow",
+      type: "combo",
+      title: "Rainbow + Rainbow",
+      description: "Combine two Rainbows to clear the entire board!",
+      icon: "🌈+🌈",
+      trigger: "first_combo_rainbow_rainbow",
+      board: "rainbow_rainbow_tutorial",
       reward: { coins: 100 }
-    },
-    {
-      id: 'rainbow_rainbow_combo',
-      type: 'combo',
-      specialA: 'color',
-      specialB: 'color',
-      title: 'Радуга + Радуга',
-      description: 'Полная очистка всего игрового поля!',
-      icon: '🌟',
-      trigger: { type: 'first_combo', comboKey: 'color_color' },
-      board: 'rainbow_rainbow_tutorial',
-      reward: { coins: 150 }
     }
-  ],
+  },
   
   init() {
     TutorialStorage.init();
-    GhostHand.init();
     TutorialOverlay.init();
+    GhostHand.init();
     
-    // Проверяем туториалы при старте уровня
-    this.checkLevelTutorials();
+    console.log('📚 TutorialManager initialized');
   },
   
-  async checkLevelTutorials() {
-    const levelTutorial = this.configs.find(c => 
-      c.trigger?.type === 'level' && 
-      c.trigger.level === currentLevel &&
-      !TutorialStorage.isCompleted(c.id) &&
-      !TutorialStorage.isSkipped(c.id)
-    );
+  checkTriggers(triggerType, data = {}) {
+    if (this.isActive) return false;
     
-    if (levelTutorial) {
-      await this.startTutorial(levelTutorial);
+    for (const [id, tutorial] of Object.entries(this.tutorials)) {
+      if (this.shouldTrigger(tutorial, triggerType, data)) {
+        this.startTutorial(id);
+        return true;
+      }
     }
+    
+    return false;
   },
   
-  async checkDiscoveryTutorial(specialType) {
-    const tutorial = this.configs.find(c => 
-      c.trigger?.type === 'first_create' && 
-      c.trigger.special === specialType &&
-      !TutorialStorage.isCompleted(c.id) &&
-      !TutorialStorage.isSkipped(c.id)
-    );
+  shouldTrigger(tutorial, triggerType, data) {
+    if (TutorialStorage.isCompleted(tutorial.id)) return false;
+    if (TutorialStorage.isSkipped(tutorial.id)) return false;
     
-    if (tutorial) {
-      await this.startTutorial(tutorial);
+    const trigger = tutorial.trigger;
+    
+    if (trigger === triggerType) return true;
+    
+    // Проверка на level_X триггеры
+    if (trigger.startsWith('level_') && triggerType === 'level_start') {
+      const levelNum = parseInt(trigger.split('_')[1]);
+      if (data.level === levelNum) return true;
     }
-  },
-  
-  async checkComboTutorial(comboKey) {
-    const tutorial = this.configs.find(c => 
-      c.trigger?.type === 'first_combo' && 
-      c.trigger.comboKey === comboKey &&
-      !TutorialStorage.isCompleted(c.id) &&
-      !TutorialStorage.isSkipped(c.id)
-    );
     
-    if (tutorial) {
-      await this.startTutorial(tutorial);
+    // Проверка на first_create_ триггеры
+    if (trigger.startsWith('first_create_') && triggerType === 'special_created') {
+      const specialType = trigger.replace('first_create_', '');
+      if (data.specialType === specialType && !TutorialStorage.hasFirstDiscovery(specialType)) {
+        return true;
+      }
     }
-  },
-  
-  async checkActivationTutorial(specialType) {
-    const tutorial = this.configs.find(c => 
-      c.trigger?.type === 'first_activate' && 
-      c.trigger.special === specialType &&
-      !TutorialStorage.isCompleted(c.id) &&
-      !TutorialStorage.isSkipped(c.id)
-    );
     
-    if (tutorial) {
-      await this.startTutorial(tutorial);
+    // Проверка на first_activate_ триггеры
+    if (trigger.startsWith('first_activate_') && triggerType === 'special_activated') {
+      const specialType = trigger.replace('first_activate_', '');
+      if (data.specialType === specialType) return true;
     }
+    
+    // Проверка на first_combo_ триггеры
+    if (trigger.startsWith('first_combo_') && triggerType === 'combo_available') {
+      const comboTarget = trigger.replace('first_combo_', '');
+      const comboKey = [data.specialA, data.specialB].sort().join('_');
+      if (comboKey === comboTarget) return true;
+    }
+    
+    return false;
   },
   
-  async startTutorial(config) {
-    if (this.isActive) return;
-    
-    this.isActive = true;
-    this.currentTutorial = config;
-    this.currentStep = 0;
-    this.startTime = Date.now();
-    this.tutorialLocked = true;
-    
-    TutorialStorage.markShown(config.id);
-    TutorialStorage.trackEvent('tutorial_started', config.id);
-    
-    // Показать попап
-    const action = await TutorialOverlay.showPopup({
-      title: config.title,
-      description: config.description,
-      icon: config.icon,
-      reward: config.reward
-    });
-    
-    if (action === 'skip') {
-      TutorialStorage.markSkipped(config.id);
-      this.endTutorial(false);
+  async startTutorial(tutorialId) {
+    const tutorial = this.tutorials[tutorialId];
+    if (!tutorial) {
+      console.error(`Tutorial ${tutorialId} not found`);
       return;
     }
     
+    console.log(`📚 Starting tutorial: ${tutorial.title}`);
+    
+    this.isActive = true;
+    this.currentTutorial = tutorial;
+    this.startTime = Date.now();
+    
+    TutorialStorage.trackAnalytics(tutorialId, 'started');
+    
+    // Сохраняем состояние игры
+    this.saveGameState();
+    
     // Блокируем игру
+    this.lockGame();
+    
+    // Показываем оверлей
+    TutorialOverlay.showOverlay();
+    
+    // Показываем попап с описанием
+    await this.showTutorialPopup(tutorial);
+    
+    // Загружаем доску туториала
+    this.loadTutorialBoard(tutorial);
+    
+    // Показываем подсказки
+    this.startHints();
+  },
+  
+  saveGameState() {
+    this.boardBackup = {
+      board: board ? JSON.parse(JSON.stringify(board)) : null,
+      movesLeft: movesLeft,
+      collectProgress: collectProgress ? { ...collectProgress } : {},
+      levelData: levelData,
+      currentLevel: currentLevel
+    };
+  },
+  
+  restoreGameState() {
+    if (this.boardBackup) {
+      board = this.boardBackup.board;
+      movesLeft = this.boardBackup.movesLeft;
+      collectProgress = this.boardBackup.collectProgress;
+      levelData = this.boardBackup.levelData;
+      currentLevel = this.boardBackup.currentLevel;
+      
+      renderBoard();
+      updateHUD();
+      initCollectTracker();
+    }
+    this.boardBackup = null;
+  },
+  
+  lockGame() {
     gameLocked = true;
+    isAnimating = false;
+    isProcessingSpecial = false;
+    levelFinished = false;
     
-    // Загружаем специальную доску если есть
-    if (config.board) {
-      await this.loadTutorialBoard(config.board);
+    // Останавливаем таймер подсказок
+    if (hintTimer) {
+      clearTimeout(hintTimer);
+      hintTimer = null;
     }
     
-    // Настраиваем визуальные подсказки
-    this.setupVisualGuidance(config);
-    
-    // Запускаем систему подсказок
-    this.startHintSystem(config);
+    // Отключаем обычные подсказки
+    clearHints();
   },
   
-  async loadTutorialBoard(boardId) {
-    const boardData = TutorialBoards.getBoard(boardId);
-    if (!boardData) return;
+  unlockGame() {
+    gameLocked = false;
+    isAnimating = false;
+    isProcessingSpecial = false;
+  },
+  
+  async showTutorialPopup(tutorial) {
+    return new Promise((resolve) => {
+      TutorialOverlay.showPopup({
+        title: tutorial.title,
+        description: tutorial.description,
+        icon: tutorial.icon,
+        showSkip: true,
+        continueText: 'Let\'s Try!',
+        onContinue: () => {
+          resolve();
+        },
+        onSkip: () => {
+          this.skipTutorial();
+          resolve();
+        }
+      });
+    });
+  },
+  
+  loadTutorialBoard(tutorial) {
+    const boardLayout = TutorialBoards.getBoard(tutorial.board);
+    if (!boardLayout) {
+      console.error(`Board layout not found for ${tutorial.board}`);
+      return;
+    }
     
-    // Сохраняем текущее состояние
-    const originalBoard = JSON.parse(JSON.stringify(board));
+    this.tutorialBoard = boardLayout;
+    board = boardLayout;
+    movesLeft = 999; // Бесконечные ходы для туториала
+    levelFinished = false;
     
-    // Загружаем предопределенную доску
-    const newBoard = TutorialBoards.fillEmpty(JSON.parse(JSON.stringify(boardData.board)));
-    
-    board = newBoard;
     renderBoard();
+    updateHUD();
     
-    // Сохраняем оригинальную доску для восстановления
-    this._originalBoard = originalBoard;
-    this._boardData = boardData;
+    // Подсвечиваем нужные клетки
+    this.highlightTargetCells();
+    
+    // Затемняем остальные клетки
+    const targetCells = this.getTargetCellElements();
+    TutorialOverlay.dimOtherCells(targetCells);
   },
   
-  setupVisualGuidance(config) {
-    TutorialOverlay.showDim();
-    TutorialOverlay.clearHighlights();
-    TutorialOverlay.clearDimAll();
+  highlightTargetCells() {
+    const allowedMoves = TutorialBoards.getAllowedMoves(this.currentTutorial.board);
+    const cellsToHighlight = [];
     
-    if (config.board && this._boardData) {
-      const boardData = this._boardData;
-      let highlightPositions = [];
-      
-      if (boardData.rocketPosition) {
-        highlightPositions.push(boardData.rocketPosition);
+    allowedMoves.forEach(move => {
+      if (cells[move.from.y] && cells[move.from.y][move.from.x]) {
+        cellsToHighlight.push(cells[move.from.y][move.from.x]);
       }
-      if (boardData.bombPosition) {
-        highlightPositions.push(boardData.bombPosition);
+      if (cells[move.to.y] && cells[move.to.y][move.to.x]) {
+        cellsToHighlight.push(cells[move.to.y][move.to.x]);
       }
-      if (boardData.rainbowPosition) {
-        highlightPositions.push(boardData.rainbowPosition);
-      }
-      if (boardData.comboPositions) {
-        highlightPositions = highlightPositions.concat(boardData.comboPositions);
-      }
-      
-      if (highlightPositions.length > 0) {
-        TutorialOverlay.highlightCells(highlightPositions);
-        TutorialOverlay.dimAllExcept(highlightPositions);
-      }
-    }
+    });
+    
+    TutorialOverlay.highlightCells(cellsToHighlight);
   },
   
-  startHintSystem(config) {
+  getTargetCellElements() {
+    const allowedMoves = TutorialBoards.getAllowedMoves(this.currentTutorial.board);
+    const cellElements = [];
+    
+    allowedMoves.forEach(move => {
+      if (cells[move.from.y] && cells[move.from.y][move.from.x]) {
+        cellElements.push(cells[move.from.y][move.from.x]);
+      }
+      if (cells[move.to.y] && cells[move.to.y][move.to.x]) {
+        cellElements.push(cells[move.to.y][move.to.x]);
+      }
+    });
+    
+    return cellElements;
+  },
+  
+  startHints() {
     // Первая подсказка через 5 секунд
     this.hintTimer = setTimeout(() => {
-      this.showFirstHint(config);
+      if (!this.isActive) return;
+      this.showFirstHint();
     }, 5000);
   },
   
-  showFirstHint(config) {
-    // Подсвечиваем нужные клетки еще ярче
-    const highlighted = document.querySelectorAll('.tutorial-highlight-cell');
-    highlighted.forEach(cell => {
-      cell.classList.add('tutorial-hint-flash');
-    });
+  showFirstHint() {
+    if (!this.isActive) return;
     
-    // Запускаем Ghost Hand через 10 секунд
+    const targetMove = TutorialBoards.getTargetMove(this.currentTutorial.board);
+    if (!targetMove) return;
+    
+    // Показываем стрелку или дополнительную подсветку
+    const fromCell = cells[targetMove.from.y]?.[targetMove.from.x];
+    if (fromCell) {
+      fromCell.style.animation = 'tutorialPulse 1s ease-in-out infinite';
+    }
+    
+    // Запускаем таймер для Ghost Hand
     this.ghostHandTimer = setTimeout(() => {
-      this.showGhostHand(config);
+      if (!this.isActive) return;
+      this.showGhostHand();
     }, 10000);
   },
   
-  showGhostHand(config) {
-    const boardData = this._boardData;
-    if (!boardData) return;
-    
-    let fromX, fromY, toX, toY;
-    
-    if (boardData.swipeDirection) {
-      fromX = boardData.swipeDirection.from;
-      toX = boardData.swipeDirection.to;
-      fromY = boardData.swipeDirection.y;
-      toY = boardData.swipeDirection.y;
-    } else if (boardData.swipeTargets && boardData.swipeTargets.length > 0) {
-      const target = boardData.swipeTargets[0];
-      if (boardData.rocketPosition) {
-        fromX = boardData.rocketPosition.x;
-        fromY = boardData.rocketPosition.y;
-      } else if (boardData.bombPosition) {
-        fromX = boardData.bombPosition.x;
-        fromY = boardData.bombPosition.y;
-      } else if (boardData.rainbowPosition) {
-        fromX = boardData.rainbowPosition.x;
-        fromY = boardData.rainbowPosition.y;
-      }
-      toX = target.x;
-      toY = target.y;
-    }
-    
-    if (fromX !== undefined && toX !== undefined) {
-      GhostHand.startLoop(fromX, fromY, toX, toY);
-    }
-  },
-  
-  // Вызывается при попытке игрока сделать ход
-  validateMove(fromX, fromY, toX, toY) {
-    if (!this.isActive || !this.tutorialLocked) return true;
-    
-    const config = this.currentTutorial;
-    const boardData = this._boardData;
-    
-    if (!boardData) return false;
-    
-    let isValid = false;
-    
-    // Проверяем правильность хода
-    if (boardData.swipeDirection) {
-      isValid = (fromX === boardData.swipeDirection.from && 
-                 toX === boardData.swipeDirection.to &&
-                 fromY === boardData.swipeDirection.y &&
-                 toY === boardData.swipeDirection.y);
-    }
-    
-    if (boardData.swipeTargets) {
-      isValid = boardData.swipeTargets.some(target => {
-        return toX === target.x && toY === target.y;
-      });
-    }
-    
-    if (!isValid) {
-      this.handleWrongMove(fromX, fromY, config);
-    }
-    
-    return isValid;
-  },
-  
-  handleWrongMove(x, y, config) {
-    TutorialStorage.addFailedAttempt(config.id);
-    TutorialOverlay.shakeCell(x, y);
-    TutorialOverlay.showWrongMovePopup(
-      config.wrongMoveMessage || 'Попробуйте переместить выделенную фишку!'
-    );
-  },
-  
-  // Вызывается при успешном выполнении действия
-  onCorrectAction() {
+  showGhostHand() {
     if (!this.isActive) return;
     
-    GhostHand.stopLoop();
-    clearTimeout(this.hintTimer);
-    clearTimeout(this.ghostHandTimer);
+    const targetMove = TutorialBoards.getTargetMove(this.currentTutorial.board);
+    if (!targetMove) return;
     
-    const timeSpent = Math.floor((Date.now() - this.startTime) / 1000);
-    TutorialStorage.addTimeSpent(this.currentTutorial.id, timeSpent);
+    const fromCell = cells[targetMove.from.y]?.[targetMove.from.x];
+    const toCell = cells[targetMove.to.y]?.[targetMove.to.x];
+    
+    if (fromCell && toCell) {
+      GhostHand.startRepeatAnimation(fromCell, toCell, 10000);
+    }
+  },
+  
+  validateMove(from, to) {
+    if (!this.isActive) return null;
+    
+    const allowedMoves = TutorialBoards.getAllowedMoves(this.currentTutorial.board);
+    
+    const isValid = allowedMoves.some(move => 
+      (move.from.x === from.x && move.from.y === from.y &&
+       move.to.x === to.x && move.to.y === to.y) ||
+      (move.from.x === to.x && move.from.y === to.y &&
+       move.to.x === from.x && move.to.y === from.y)
+    );
+    
+    if (!isValid) {
+      return {
+        valid: false,
+        message: `Try combining the highlighted ${this.currentTutorial.title} tiles!`
+      };
+    }
+    
+    return { valid: true };
+  },
+  
+  handleWrongMove(cellA, cellB) {
+    TutorialStorage.addFailedAttempt(this.currentTutorial.id);
+    
+    // Анимация неправильного хода
+    const cellsToShake = [];
+    if (cellA) cellsToShake.push(cellA);
+    if (cellB) cellsToShake.push(cellB);
+    
+    TutorialOverlay.showWrongMoveEffect(cellsToShake);
+    
+    // Показываем сообщение
+    setTimeout(() => {
+      TutorialOverlay.showPopup({
+        title: 'Not Quite!',
+        description: this.validateMove({x: 0, y: 0}, {x: 0, y: 0}).message,
+        icon: '🤔',
+        showSkip: false,
+        continueText: 'Try Again'
+      });
+    }, 500);
+  },
+  
+  handleCorrectMove() {
+    if (!this.isActive) return;
+    
+    console.log('✅ Tutorial completed:', this.currentTutorial.title);
+    
+    this.stopHints();
+    
+    // Даем награду
+    if (this.currentTutorial.reward) {
+      if (this.currentTutorial.reward.coins) {
+        addCoins(this.currentTutorial.reward.coins);
+        updateCoinsUI();
+      }
+    }
+    
+    // Отмечаем как завершенный
     TutorialStorage.markCompleted(this.currentTutorial.id);
     
-    // Выдать награду
-    if (this.currentTutorial.reward?.coins) {
-      addCoins(this.currentTutorial.reward.coins);
-      updateCoinsUI();
+    // Если это было открытие спец-фишки
+    if (this.currentTutorial.type === 'discovery') {
+      const specialType = this.currentTutorial.trigger.replace('first_create_', '');
+      TutorialStorage.setFirstDiscovery(specialType);
     }
     
-    // Показать попап завершения
-    this.showCompletion();
+    // Показываем попап успеха
+    setTimeout(() => {
+      TutorialOverlay.showPopup({
+        title: 'Excellent! 🎉',
+        description: `You've mastered ${this.currentTutorial.title}!`,
+        icon: '⭐',
+        showSkip: false,
+        continueText: 'Continue',
+        onContinue: () => {
+          this.endTutorial();
+        }
+      });
+    }, 1000);
   },
   
-  async showCompletion() {
-    gameLocked = true;
-    
-    await TutorialOverlay.showCompletionPopup({
-      completionMessage: `Вы освоили "${this.currentTutorial.title}"!`,
-      reward: this.currentTutorial.reward
-    });
-    
-    this.endTutorial(true);
+  stopHints() {
+    if (this.hintTimer) {
+      clearTimeout(this.hintTimer);
+      this.hintTimer = null;
+    }
+    if (this.ghostHandTimer) {
+      clearTimeout(this.ghostHandTimer);
+      this.ghostHandTimer = null;
+    }
+    GhostHand.hide();
   },
   
-  endTutorial(completed) {
+  endTutorial() {
+    this.stopHints();
+    TutorialOverlay.hideOverlay();
+    TutorialOverlay.hidePopup();
+    TutorialOverlay.clearHighlights();
+    
+    // Восстанавливаем состояние игры
+    this.restoreGameState();
+    
+    this.unlockGame();
+    
     this.isActive = false;
     this.currentTutorial = null;
-    this.tutorialLocked = false;
+    this.tutorialBoard = null;
     
-    GhostHand.stopLoop();
-    clearTimeout(this.hintTimer);
-    clearTimeout(this.ghostHandTimer);
-    
-    TutorialOverlay.hideDim();
-    TutorialOverlay.clearHighlights();
-    TutorialOverlay.clearDimAll();
-    
-    // Восстанавливаем оригинальную доску если была заменена
-    if (this._originalBoard) {
-      board = this._originalBoard;
-      renderBoard();
-      this._originalBoard = null;
-      this._boardData = null;
-    }
-    
-    gameLocked = false;
-    updateHUD();
+    // Перезапускаем уровень
+    initLevel();
   },
   
-  // Интеграция с onCellClick
-  onCellClickHook(x, y) {
+  skipTutorial() {
+    if (!this.currentTutorial) return;
+    
+    console.log('⏭️ Tutorial skipped:', this.currentTutorial.title);
+    
+    TutorialStorage.markSkipped(this.currentTutorial.id);
+    this.stopHints();
+    TutorialOverlay.hideOverlay();
+    TutorialOverlay.hidePopup();
+    TutorialOverlay.clearHighlights();
+    
+    this.restoreGameState();
+    this.unlockGame();
+    
+    this.isActive = false;
+    this.currentTutorial = null;
+    this.tutorialBoard = null;
+    
+    initLevel();
+  },
+  
+  // Интеграционные методы
+  onLevelStart(level) {
+    this.checkTriggers('level_start', { level });
+  },
+  
+  onSpecialCreated(specialType) {
+    this.checkTriggers('special_created', { specialType });
+  },
+  
+  onSpecialActivated(specialType) {
+    this.checkTriggers('special_activated', { specialType });
+  },
+  
+  onComboAvailable(specialA, specialB) {
+    this.checkTriggers('combo_available', { specialA, specialB });
+  },
+  
+  isMoveAllowed(fromX, fromY, toX, toY) {
     if (!this.isActive) return true;
     
-    if (selected) {
-      const isValid = this.validateMove(selected.x, selected.y, x, y);
-      if (isValid) {
-        // Разрешаем ход
-        this.tutorialLocked = false;
-        setTimeout(() => this.onCorrectAction(), 1000);
-        return true;
-      }
-      return false;
-    }
+    const validation = this.validateMove(
+      { x: fromX, y: fromY },
+      { x: toX, y: toY }
+    );
     
-    return true;
+    return validation ? validation.valid : true;
   },
   
-  // Интеграция с созданием спец-фишек
-  onSpecialCreated(specialType, x, y) {
-    this.checkDiscoveryTutorial(specialType);
-  },
-  
-  // Интеграция с активацией спец-фишек
-  onSpecialActivated(specialType) {
-    this.checkActivationTutorial(specialType);
-  },
-  
-  // Интеграция с комбо
-  onComboActivated(comboKey) {
-    this.checkComboTutorial(comboKey);
-  },
-  
-  // Ручной запуск туториала
-  replayTutorial(tutorialId) {
-    TutorialStorage.resetTutorial(tutorialId);
-    const config = this.configs.find(c => c.id === tutorialId);
-    if (config) {
-      this.startTutorial(config);
-    }
-  },
-  
-  // Получить список всех туториалов для меню
-  getAllTutorials() {
-    return this.configs.map(c => ({
-      ...c,
-      completed: TutorialStorage.isCompleted(c.id),
-      skipped: TutorialStorage.isSkipped(c.id)
-    }));
+  destroy() {
+    this.stopHints();
+    TutorialOverlay.destroy();
+    GhostHand.destroy();
+    this.isActive = false;
+    this.currentTutorial = null;
   }
 };
