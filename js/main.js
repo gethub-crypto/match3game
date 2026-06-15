@@ -131,14 +131,9 @@ const SpecialComboManager = {
     
     console.log(`⚡ Special Combo: ${typeA} + ${typeB} at [${posA.x},${posA.y}] & [${posB.x},${posB.y}]`)
     
-    const comboKey = [typeA, typeB].sort().join('_')
-    
-    // Интеграция с туториалом - отмечаем активацию комбо
-    if (typeof TutorialManager !== 'undefined') {
-      TutorialManager.onComboActivated(comboKey)
-    }
-    
     this.processedSpecials.clear()
+    
+    const comboKey = [typeA, typeB].sort().join('_')
     
     switch(comboKey) {
       case 'rocket_rocket':
@@ -537,13 +532,7 @@ const SpecialComboManager = {
 
 async function init(){
   InputManager.init();
-  LivesSystem.init();
-  
-  // Инициализация туториала (если модуль загружен)
-  if (typeof TutorialManager !== 'undefined') {
-    TutorialManager.init();
-  }
-  
+  LivesSystem.init()
   await Levels.load()
   updateScreens()
   updateCoinsUI()
@@ -587,11 +576,6 @@ function initLevel(){
   startGameplay()
   initCollectTracker()
   startHintTimer()
-  
-  // Проверка туториалов для текущего уровня
-  if (typeof TutorialManager !== 'undefined' && !TutorialManager.isActive) {
-    TutorialManager.checkLevelTutorials();
-  }
 }
 
 
@@ -856,39 +840,19 @@ async function onCellClick(x, y){
   
   lastClickTime = now
   
-  // Если ничего не выбрано - выбираем клетку
   if(!selected){
     selected = {x, y}
     highlightCell(x, y)
     return
   }
   
-  // Если кликнули на ту же клетку - снимаем выделение
-  if(selected.x === x && selected.y === y){
-    clearHighlight()
-    selected = null
-    return
-  }
-  
-  // Проверяем, что клетки соседние
   const dx = Math.abs(selected.x - x)
   const dy = Math.abs(selected.y - y)
   
   if(dx + dy !== 1){
-    // Не соседняя клетка - переносим выделение
     clearHighlight()
-    selected = {x, y}
-    highlightCell(x, y)
+    selected = null
     return
-  }
-  
-  // Проверка туториала ТОЛЬКО при активном туториале
-  if (typeof TutorialManager !== 'undefined' && TutorialManager.isActive) {
-    if (!TutorialManager.onCellClickHook(x, y)) {
-      clearHighlight()
-      selected = null
-      return;
-    }
   }
   
   ComboManager.reset()
@@ -904,7 +868,6 @@ async function onCellClick(x, y){
   const A = board[a.y][a.x]
   const B = board[b.y][b.x]
   
-  // Меняем местами
   board[a.y][a.x] = B
   board[b.y][b.x] = A
   
@@ -943,28 +906,12 @@ async function onCellClick(x, y){
     await Specials.activateWithDelay(b.x, b.y, null, swipeDir)
     board[b.y][b.x] = null
     hasSpecialActivated = true
-    
-    // Интеграция с туториалом
-    if (typeof TutorialManager !== 'undefined') {
-      const specialType = SpecialComboManager.getSpecialType(cellB);
-      if (specialType) {
-        TutorialManager.onSpecialActivated(specialType);
-      }
-    }
   }
   
   if(!hasSpecialActivated && cellA && SpecialComboManager.isSpecial(cellA)){
     await Specials.activateWithDelay(a.x, a.y, null, swipeDir)
     board[a.y][a.x] = null
     hasSpecialActivated = true
-    
-    // Интеграция с туториалом
-    if (typeof TutorialManager !== 'undefined') {
-      const specialType = SpecialComboManager.getSpecialType(cellA);
-      if (specialType) {
-        TutorialManager.onSpecialActivated(specialType);
-      }
-    }
   }
   
   if(hasSpecialActivated){
@@ -986,11 +933,9 @@ async function onCellClick(x, y){
     return
   }
   
-  // Обычная проверка матчей
   let matches = MatchDetection.getMatches(board)
   
   if(matches.length === 0){
-    // Нет матчей - возвращаем фишки обратно
     board[a.y][a.x] = A
     board[b.y][b.x] = B
     renderBoard()
@@ -1146,11 +1091,6 @@ async function processMatchesAsync(){
         color: randomColor(),
         special: specialType,
         type: "special"
-      }
-      
-      // Интеграция с туториалом - отмечаем создание спец-фишки
-      if (typeof TutorialManager !== 'undefined') {
-        TutorialManager.onSpecialCreated(specialType, specialCell.x, specialCell.y);
       }
     }
     
@@ -1349,11 +1289,6 @@ function swapTest(x1, y1, x2, y2){
 // ================= SHUFFLE =================
 
 async function shuffleBoardAsync(){
-  // Если активен туториал - не перемешиваем доску
-  if (typeof TutorialManager !== 'undefined' && TutorialManager.isActive) {
-    return;
-  }
-  
   do {
     for(let y=0; y<SIZE; y++){
       for(let x=0; x<SIZE; x++){
@@ -1384,9 +1319,6 @@ function startHintTimer(){
 }
 
 function showHint(){
-  // Если активен туториал - не показываем обычные подсказки
-  if (typeof TutorialManager !== 'undefined' && TutorialManager.isActive) return;
-  
   if(gameLocked || isAnimating || isProcessingSpecial) return
   
   for(let y=0; y<SIZE; y++){
@@ -1529,9 +1461,6 @@ function checkWin(){
     winLevel()
     return
   }
-  
-  // Не проигрываем во время туториала
-  if (typeof TutorialManager !== 'undefined' && TutorialManager.isActive) return;
   
   if(movesLeft <= 0){
     loseLevel()
