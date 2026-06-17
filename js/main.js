@@ -558,7 +558,7 @@ function startLevel(){
 // ================= INIT LEVEL =================
 
 function initLevel(){
-  // 🎓 TUTORIAL INTEGRATION: Если туториал активен, он сам управляет доской
+  // 🎓 TUTORIAL: Если туториал активен, он сам управляет доской
   if (typeof TutorialManager !== 'undefined' && TutorialManager.isActive) {
     console.log('🎓 Tutorial active, letting TutorialManager handle the board');
     return;
@@ -582,6 +582,13 @@ function initLevel(){
   startGameplay()
   initCollectTracker()
   startHintTimer()
+  
+  // 🎓 TUTORIAL: Проверяем триггеры уровня после полной загрузки
+  if (typeof TutorialManager !== 'undefined') {
+    setTimeout(() => {
+      TutorialManager.checkLevelTriggers();
+    }, 1000);
+  }
 }
 
 
@@ -727,7 +734,7 @@ function handleDragStart(x, y, e) {
   
   if(gameLocked || isAnimating || isProcessingSpecial) return
   
-  // 🎓 TUTORIAL INTEGRATION: Блокируем нетаргетные клетки
+  // 🎓 TUTORIAL: Блокируем нетаргетные клетки
   if (typeof TutorialManager !== 'undefined' && TutorialManager.isActive && TutorialManager.inputLocked) {
     const targetAction = TutorialManager.expectedAction;
     if (targetAction && targetAction.from) {
@@ -853,7 +860,7 @@ async function onCellClick(x, y){
   const now = Date.now()
   if(now - lastClickTime < CLICK_COOLDOWN) return
   
-  // 🎓 TUTORIAL INTEGRATION: Проверка таргетных клеток
+  // 🎓 TUTORIAL: Проверка таргетных клеток
   if (typeof TutorialManager !== 'undefined' && TutorialManager.isActive && TutorialManager.inputLocked) {
     const targetAction = TutorialManager.expectedAction;
     if (targetAction && targetAction.from && targetAction.to) {
@@ -863,12 +870,10 @@ async function onCellClick(x, y){
         (!selected && x === targetAction.from.x && y === targetAction.from.y);
       
       if (!isTargetCell) {
-        // Проверяем, это начало неправильного действия или завершение
         if (selected) {
-          // Неправильный свайп
+          clearHighlight();
+          selected = null;
           if (typeof TutorialManager.handleWrongMove === 'function') {
-            clearHighlight();
-            selected = null;
             TutorialManager.handleWrongMove(x, y);
           }
         }
@@ -1676,11 +1681,11 @@ function animateCoins(){
   }
 }
 
-// ================= TUTORIAL MENU (OPTIONAL) =================
+// ================= TUTORIAL MENU =================
 
 function showTutorialMenu() {
   if (typeof TutorialManager === 'undefined') {
-    showPopup('<h2>Обучение</h2><p>Система обучения недоступна.</p><button onclick="hidePopup()">Закрыть</button>');
+    showPopup('<h2>📚 Обучение</h2><p>Система обучения недоступна.</p><button onclick="hidePopup()">Закрыть</button>');
     return;
   }
   
