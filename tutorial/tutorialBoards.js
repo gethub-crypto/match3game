@@ -1,233 +1,398 @@
-// ==================== tutorial/tutorialBoards.js ====================
+// tutorial/tutorialBoards.js
+// ================= TUTORIAL BOARDS =================
+// Специальные доски для каждого туториала
+// Никакой рандомизации, никаких каскадов
 
 const TutorialBoards = {
-  SIZE: 8,
-  COLORS: ["red", "blue", "green", "yellow", "purple"],
-  
-  // Базовое обучение свайпу
-  basic_swipe: {
-    name: "Basic Swipe",
-    description: "Swipe to match 3 or more tiles of the same color",
-    board: function() {
-      const board = this.createEmptyBoard();
-      
-      // Создаем гарантированный матч из 3 красных в центре
-      board[3][2] = "red";
-      board[3][3] = "red";
-      board[4][3] = "red";
-      board[4][4] = "red";
-      board[3][4] = "blue";
-      
-      this.fillRemaining(board);
-      return board;
-    },
-    allowedMoves: [{ from: {x: 3, y: 4}, to: {x: 3, y: 3} }],
-    targetMove: { from: {x: 3, y: 4}, to: {x: 3, y: 3} }
-  },
-  
-  // Обучение созданию ракеты
-  rocket_tutorial: {
-    name: "Rocket Creation",
-    description: "Match 4 tiles in a row to create a Rocket",
-    board: function() {
-      const board = this.createEmptyBoard();
-      
-      // Создаем гарантированный матч из 4 для ракеты
-      board[4][2] = "blue";
-      board[4][3] = "blue";
-      board[4][4] = "blue";
-      board[4][5] = "blue";
-      
-      // Добавляем свайп для завершения матча
-      board[3][2] = "red";
-      board[3][3] = "blue";
-      
-      this.fillRemaining(board);
-      return board;
-    },
-    allowedMoves: [{ from: {x: 3, y: 3}, to: {x: 2, y: 4} }],
-    targetMove: { from: {x: 3, y: 3}, to: {x: 2, y: 4} }
-  },
-  
-  // Обучение созданию бомбы
-  bomb_tutorial: {
-    name: "Bomb Creation",
-    description: "Match tiles in L or T shape to create a Bomb",
-    board: function() {
-      const board = this.createEmptyBoard();
-      
-      // Создаем L-образный матч для бомбы
-      board[3][3] = "green";
-      board[3][4] = "green";
-      board[3][5] = "green";
-      board[4][3] = "green";
-      board[5][3] = "green";
-      
-      board[4][2] = "red";
-      board[4][4] = "green";
-      
-      this.fillRemaining(board);
-      return board;
-    },
-    allowedMoves: [{ from: {x: 4, y: 2}, to: {x: 4, y: 4} }],
-    targetMove: { from: {x: 4, y: 2}, to: {x: 4, y: 4} }
-  },
-  
-  // Обучение созданию радуги
-  rainbow_tutorial: {
-    name: "Rainbow Creation",
-    description: "Match 5 tiles in a row to create a Rainbow",
-    board: function() {
-      const board = this.createEmptyBoard();
-      
-      // Создаем матч из 5 для радуги
-      board[4][1] = "yellow";
-      board[4][2] = "yellow";
-      board[4][3] = "yellow";
-      board[4][4] = "yellow";
-      board[4][5] = "yellow";
-      
-      board[3][1] = "red";
-      board[3][3] = "yellow";
-      
-      this.fillRemaining(board);
-      return board;
-    },
-    allowedMoves: [{ from: {x: 3, y: 3}, to: {x: 1, y: 4} }],
-    targetMove: { from: {x: 3, y: 3}, to: {x: 1, y: 4} }
-  },
-  
-  // Комбинация Rocket + Rocket
-  rocket_rocket_tutorial: {
-    name: "Rocket + Rocket",
-    description: "Combine two Rockets to clear a cross shape",
-    board: function() {
-      const board = this.createEmptyBoard();
-      
-      // Размещаем две ракеты
-      board[3][3] = { color: "red", special: "rocket", type: "special" };
-      board[3][4] = { color: "blue", special: "rocket", type: "special" };
-      
-      this.fillRemaining(board);
-      return board;
-    },
-    allowedMoves: [{ from: {x: 3, y: 3}, to: {x: 4, y: 3} }],
-    targetMove: { from: {x: 3, y: 3}, to: {x: 4, y: 3} }
-  },
-  
-  // Комбинация Rocket + Bomb
-  rocket_bomb_tutorial: {
-    name: "Rocket + Bomb",
-    description: "Combine a Rocket and Bomb for a powerful explosion",
-    board: function() {
-      const board = this.createEmptyBoard();
-      
-      board[3][3] = { color: "red", special: "rocket", type: "special" };
-      board[3][4] = { color: "green", special: "bomb", type: "special" };
-      
-      this.fillRemaining(board);
-      return board;
-    },
-    allowedMoves: [{ from: {x: 3, y: 3}, to: {x: 4, y: 3} }],
-    targetMove: { from: {x: 3, y: 3}, to: {x: 4, y: 3} }
-  },
-  
-  // Комбинация Rocket + Rainbow
-  rocket_rainbow_tutorial: {
-    name: "Rocket + Rainbow",
-    description: "Combine a Rocket and Rainbow to turn all tiles of one color into Rockets",
-    board: function() {
-      const board = this.createEmptyBoard();
-      
-      board[3][3] = { color: "yellow", special: "rocket", type: "special" };
-      board[3][4] = { color: null, special: "color", type: "special" };
-      
-      this.fillRemaining(board);
-      return board;
-    },
-    allowedMoves: [{ from: {x: 3, y: 3}, to: {x: 4, y: 3} }],
-    targetMove: { from: {x: 3, y: 3}, to: {x: 4, y: 3} }
-  },
-  
-  // Комбинация Bomb + Bomb
-  bomb_bomb_tutorial: {
-    name: "Bomb + Bomb",
-    description: "Combine two Bombs for a mega explosion",
-    board: function() {
-      const board = this.createEmptyBoard();
-      
-      board[3][3] = { color: "red", special: "bomb", type: "special" };
-      board[3][4] = { color: "blue", special: "bomb", type: "special" };
-      
-      this.fillRemaining(board);
-      return board;
-    },
-    allowedMoves: [{ from: {x: 3, y: 3}, to: {x: 4, y: 3} }],
-    targetMove: { from: {x: 3, y: 3}, to: {x: 4, y: 3} }
-  },
-  
-  // Комбинация Bomb + Rainbow
-  bomb_rainbow_tutorial: {
-    name: "Bomb + Rainbow",
-    description: "Combine a Bomb and Rainbow to turn all tiles of one color into Bombs",
-    board: function() {
-      const board = this.createEmptyBoard();
-      
-      board[3][3] = { color: "green", special: "bomb", type: "special" };
-      board[3][4] = { color: null, special: "color", type: "special" };
-      
-      this.fillRemaining(board);
-      return board;
-    },
-    allowedMoves: [{ from: {x: 3, y: 3}, to: {x: 4, y: 3} }],
-    targetMove: { from: {x: 3, y: 3}, to: {x: 4, y: 3} }
-  },
-  
-  // Комбинация Rainbow + Rainbow
-  rainbow_rainbow_tutorial: {
-    name: "Rainbow + Rainbow",
-    description: "Combine two Rainbows to clear the entire board",
-    board: function() {
-      const board = this.createEmptyBoard();
-      
-      board[3][3] = { color: null, special: "color", type: "special" };
-      board[3][4] = { color: null, special: "color", type: "special" };
-      
-      this.fillRemaining(board);
-      return board;
-    },
-    allowedMoves: [{ from: {x: 3, y: 3}, to: {x: 4, y: 3} }],
-    targetMove: { from: {x: 3, y: 3}, to: {x: 4, y: 3} }
-  },
-  
-  createEmptyBoard() {
-    return Array.from({ length: this.SIZE }, () => 
-      Array.from({ length: this.SIZE }, () => null)
-    );
-  },
-  
-  fillRemaining(board) {
-    for (let y = 0; y < this.SIZE; y++) {
-      for (let x = 0; x < this.SIZE; x++) {
-        if (board[y][x] === null) {
-          board[y][x] = this.COLORS[Math.floor(Math.random() * this.COLORS.length)];
-        }
+  // Вспомогательная функция: создать пустую доску
+  createEmpty() {
+    const board = [];
+    for (let y = 0; y < SIZE; y++) {
+      board[y] = [];
+      for (let x = 0; x < SIZE; x++) {
+        board[y][x] = null;
       }
     }
+    return board;
   },
-  
-  getBoard(tutorialId) {
-    if (this[tutorialId] && typeof this[tutorialId].board === 'function') {
-      return this[tutorialId].board();
+
+  // Заполнить доску цветами кроме указанных позиций
+  fillWithColors(board, exceptPositions = []) {
+    const exceptSet = new Set(exceptPositions.map(p => `${p.x},${p.y}`));
+    
+    for (let y = 0; y < SIZE; y++) {
+      for (let x = 0; x < SIZE; x++) {
+        if (exceptSet.has(`${x},${y}`)) continue;
+        if (board[y][x] !== null) continue;
+        
+        // Выбираем цвет, который не создаст случайных матчей
+        let color;
+        do {
+          color = COLORS[Math.floor(Math.random() * COLORS.length)];
+          board[y][x] = color;
+        } while (wouldCreateMatch(board, x, y));
+      }
     }
-    return null;
+    return board;
   },
-  
-  getAllowedMoves(tutorialId) {
-    return this[tutorialId]?.allowedMoves || [];
+
+  // Проверка: создаст ли этот цвет матч
+  wouldCreateMatch(board, x, y) {
+    const color = board[y][x];
+    if (!color) return false;
+    
+    // Горизонтальная проверка
+    if (x >= 2 && 
+        board[y][x-1] === color && 
+        board[y][x-2] === color) return true;
+    
+    // Вертикальная проверка
+    if (y >= 2 && 
+        board[y-1] && board[y-1][x] === color && 
+        board[y-2] && board[y-2][x] === color) return true;
+    
+    return false;
   },
-  
-  getTargetMove(tutorialId) {
-    return this[tutorialId]?.targetMove || null;
+
+  // ================= БАЗОВЫЙ СВАЙП =================
+  basicSwipe() {
+    const board = this.createEmpty();
+    
+    // Создаём ситуацию для очевидного свайпа
+    board[3][3] = 'red';
+    board[3][4] = 'blue';
+    board[3][5] = 'red';
+    board[4][3] = 'green';
+    board[4][4] = 'red';   // ← эту фишку нужно свайпнуть вверх
+    board[4][5] = 'yellow';
+    board[5][3] = 'purple';
+    board[5][4] = 'red';
+    board[5][5] = 'blue';
+    
+    this.fillWithColors(board, [
+      {x:3,y:3},{x:3,y:4},{x:3,y:5},
+      {x:4,y:3},{x:4,y:4},{x:4,y:5},
+      {x:5,y:3},{x:5,y:4},{x:5,y:5}
+    ]);
+    
+    // Позиции для подсветки: свайп (4,4) ↔ (3,4)
+    return {
+      board,
+      targetAction: {
+        type: 'swipe',
+        from: { x: 4, y: 4 },
+        to: { x: 3, y: 4 },
+        description: 'Свайпни красную фишку вверх к другим красным'
+      },
+      expectedMatch: {
+        cells: [{x:3,y:4}, {x:4,y:4}, {x:5,y:4}],
+        color: 'red'
+      }
+    };
+  },
+
+  // ================= СОЗДАНИЕ РАКЕТЫ =================
+  createRocket() {
+    const board = this.createEmpty();
+    
+    // 4 красных в ряд по горизонтали
+    board[3][2] = 'red';
+    board[3][3] = 'red';
+    board[3][4] = 'red';
+    board[3][5] = 'red';
+    
+    // Очевидный свайп чтобы их совместить
+    board[4][3] = 'red';
+    board[4][4] = 'blue';
+    
+    this.fillWithColors(board, [
+      {x:2,y:3},{x:3,y:3},{x:4,y:3},{x:5,y:3},
+      {x:3,y:4},{x:4,y:4}
+    ]);
+    
+    return {
+      board,
+      targetAction: {
+        type: 'swipe',
+        from: { x: 3, y: 4 },
+        to: { x: 3, y: 3 },
+        description: 'Свайпни красную фишку, чтобы создать 4 в ряд'
+      },
+      expectedMatch: {
+        type: 'rocket',
+        cells: [{x:2,y:3}, {x:3,y:3}, {x:4,y:3}, {x:5,y:3}],
+        color: 'red'
+      }
+    };
+  },
+
+  // ================= СОЗДАНИЕ БОМБЫ =================
+  createBomb() {
+    const board = this.createEmpty();
+    
+    // L-образная форма для бомбы
+    board[2][3] = 'green';
+    board[3][2] = 'green';
+    board[3][3] = 'green';
+    board[3][4] = 'green';
+    board[4][3] = 'green';
+    
+    // Свайп чтобы завершить форму
+    board[4][4] = 'green';
+    board[4][5] = 'blue';
+    
+    this.fillWithColors(board, [
+      {x:3,y:2},{x:2,y:3},{x:3,y:3},{x:4,y:3},{x:3,y:4},
+      {x:4,y:4},{x:5,y:4}
+    ]);
+    
+    return {
+      board,
+      targetAction: {
+        type: 'swipe',
+        from: { x: 4, y: 4 },
+        to: { x: 3, y: 4 },
+        description: 'Свайпни зелёную фишку для создания L-формы'
+      },
+      expectedMatch: {
+        type: 'bomb',
+        cells: [{x:3,y:2},{x:2,y:3},{x:3,y:3},{x:4,y:3},{x:3,y:4}],
+        color: 'green'
+      }
+    };
+  },
+
+  // ================= СОЗДАНИЕ РАДУГИ =================
+  createRainbow() {
+    const board = this.createEmpty();
+    
+    // 5 фишек в ряд
+    board[3][1] = 'yellow';
+    board[3][2] = 'yellow';
+    board[3][3] = 'yellow';
+    board[3][4] = 'yellow';
+    board[3][5] = 'yellow';
+    
+    // Свайп чтобы завершить 5 в ряд
+    board[4][3] = 'yellow';
+    board[4][4] = 'purple';
+    
+    this.fillWithColors(board, [
+      {x:1,y:3},{x:2,y:3},{x:3,y:3},{x:4,y:3},{x:5,y:3},
+      {x:3,y:4},{x:4,y:4}
+    ]);
+    
+    return {
+      board,
+      targetAction: {
+        type: 'swipe',
+        from: { x: 3, y: 4 },
+        to: { x: 3, y: 3 },
+        description: 'Свайпни жёлтую фишку, чтобы создать 5 в ряд'
+      },
+      expectedMatch: {
+        type: 'color',
+        cells: [{x:1,y:3},{x:2,y:3},{x:3,y:3},{x:4,y:3},{x:5,y:3}],
+        color: 'yellow'
+      }
+    };
+  },
+
+  // ================= РАКЕТА + РАКЕТА =================
+  rocketRocket() {
+    const board = this.createEmpty();
+    
+    // Две ракеты рядом
+    board[3][3] = { color: 'red', special: 'rocket', type: 'special' };
+    board[3][4] = { color: 'blue', special: 'rocket', type: 'special' };
+    
+    this.fillWithColors(board, [
+      {x:3,y:3}, {x:4,y:3}
+    ]);
+    
+    return {
+      board,
+      targetAction: {
+        type: 'swipe',
+        from: { x: 3, y: 3 },
+        to: { x: 4, y: 3 },
+        description: 'Свайпни одну ракету к другой'
+      },
+      expectedCombo: {
+        type: 'rocket_rocket',
+        cellA: { x: 3, y: 3, special: 'rocket' },
+        cellB: { x: 4, y: 3, special: 'rocket' }
+      }
+    };
+  },
+
+  // ================= РАКЕТА + БОМБА =================
+  rocketBomb() {
+    const board = this.createEmpty();
+    
+    board[3][3] = { color: 'red', special: 'rocket', type: 'special' };
+    board[3][4] = { color: 'green', special: 'bomb', type: 'special' };
+    
+    this.fillWithColors(board, [
+      {x:3,y:3}, {x:4,y:3}
+    ]);
+    
+    return {
+      board,
+      targetAction: {
+        type: 'swipe',
+        from: { x: 3, y: 3 },
+        to: { x: 4, y: 3 },
+        description: 'Свайпни ракету к бомбе'
+      },
+      expectedCombo: {
+        type: 'rocket_bomb',
+        cellA: { x: 3, y: 3, special: 'rocket' },
+        cellB: { x: 4, y: 3, special: 'bomb' }
+      }
+    };
+  },
+
+  // ================= РАКЕТА + РАДУГА =================
+  rocketRainbow() {
+    const board = this.createEmpty();
+    
+    board[3][3] = { color: 'red', special: 'rocket', type: 'special' };
+    board[3][4] = { color: 'rainbow', special: 'color', type: 'special' };
+    
+    this.fillWithColors(board, [
+      {x:3,y:3}, {x:4,y:3}
+    ]);
+    
+    return {
+      board,
+      targetAction: {
+        type: 'swipe',
+        from: { x: 3, y: 3 },
+        to: { x: 4, y: 3 },
+        description: 'Свайпни ракету к радуге'
+      },
+      expectedCombo: {
+        type: 'rocket_color',
+        cellA: { x: 3, y: 3, special: 'rocket' },
+        cellB: { x: 4, y: 3, special: 'color' }
+      }
+    };
+  },
+
+  // ================= БОМБА + БОМБА =================
+  bombBomb() {
+    const board = this.createEmpty();
+    
+    board[3][3] = { color: 'blue', special: 'bomb', type: 'special' };
+    board[3][4] = { color: 'purple', special: 'bomb', type: 'special' };
+    
+    this.fillWithColors(board, [
+      {x:3,y:3}, {x:4,y:3}
+    ]);
+    
+    return {
+      board,
+      targetAction: {
+        type: 'swipe',
+        from: { x: 3, y: 3 },
+        to: { x: 4, y: 3 },
+        description: 'Свайпни одну бомбу к другой'
+      },
+      expectedCombo: {
+        type: 'bomb_bomb',
+        cellA: { x: 3, y: 3, special: 'bomb' },
+        cellB: { x: 4, y: 3, special: 'bomb' }
+      }
+    };
+  },
+
+  // ================= БОМБА + РАДУГА =================
+  bombRainbow() {
+    const board = this.createEmpty();
+    
+    board[3][3] = { color: 'green', special: 'bomb', type: 'special' };
+    board[3][4] = { color: 'rainbow', special: 'color', type: 'special' };
+    
+    this.fillWithColors(board, [
+      {x:3,y:3}, {x:4,y:3}
+    ]);
+    
+    return {
+      board,
+      targetAction: {
+        type: 'swipe',
+        from: { x: 3, y: 3 },
+        to: { x: 4, y: 3 },
+        description: 'Свайпни бомбу к радуге'
+      },
+      expectedCombo: {
+        type: 'bomb_color',
+        cellA: { x: 3, y: 3, special: 'bomb' },
+        cellB: { x: 4, y: 3, special: 'color' }
+      }
+    };
+  },
+
+  // ================= РАДУГА + РАДУГА =================
+  rainbowRainbow() {
+    const board = this.createEmpty();
+    
+    board[3][3] = { color: 'rainbow', special: 'color', type: 'special' };
+    board[3][4] = { color: 'rainbow', special: 'color', type: 'special' };
+    
+    this.fillWithColors(board, [
+      {x:3,y:3}, {x:4,y:3}
+    ]);
+    
+    return {
+      board,
+      targetAction: {
+        type: 'swipe',
+        from: { x: 3, y: 3 },
+        to: { x: 4, y: 3 },
+        description: 'Свайпни одну радугу к другой'
+      },
+      expectedCombo: {
+        type: 'color_color',
+        cellA: { x: 3, y: 3, special: 'color' },
+        cellB: { x: 4, y: 3, special: 'color' }
+      }
+    };
+  },
+
+  // Получить доску по ID туториала
+  getBoard(tutorialId) {
+    const map = {
+      'basic_swipe': this.basicSwipe,
+      'create_rocket': this.createRocket,
+      'create_bomb': this.createBomb,
+      'create_rainbow': this.createRainbow,
+      'activate_rocket': this.createRocket, // reuse
+      'activate_bomb': this.createBomb,
+      'activate_rainbow': this.createRainbow,
+      'rocket_rocket': this.rocketRocket,
+      'rocket_bomb': this.rocketBomb,
+      'rocket_rainbow': this.rocketRainbow,
+      'bomb_bomb': this.bombBomb,
+      'bomb_rainbow': this.bombRainbow,
+      'rainbow_rainbow': this.rainbowRainbow
+    };
+    
+    const method = map[tutorialId];
+    if (!method) {
+      console.error(`❌ TutorialBoards: No board for "${tutorialId}"`);
+      return null;
+    }
+    
+    return method.call(this);
   }
 };
+
+// Глобальная вспомогательная функция
+function wouldCreateMatch(board, x, y) {
+  return TutorialBoards.wouldCreateMatch(board, x, y);
+}
+
+window.TutorialBoards = TutorialBoards;
+console.log('🎯 TutorialBoards initialized');
