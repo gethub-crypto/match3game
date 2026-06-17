@@ -1,158 +1,160 @@
-// ==================== tutorial/tutorialStorage.js ====================
+// tutorial/tutorialStorage.js
+// ================= TUTORIAL STORAGE SYSTEM =================
+// Сохраняет прогресс туториалов в localStorage
+// Никогда не мешает основному Storage модулю игры
 
 const TutorialStorage = {
-  STORAGE_KEY: 'match3_tutorial_data',
-  
-  defaultData: {
-    completedTutorials: {},
-    skippedTutorials: {},
-    shownTutorials: {},
-    failedAttempts: {},
-    analytics: {},
-    firstDiscoveries: {
-      rocket: false,
-      bomb: false,
-      rainbow: false
-    },
-    tutorialProgress: {
-      currentTutorial: null,
-      currentStep: 0
-    }
-  },
-  
-  init() {
-    if (!localStorage.getItem(this.STORAGE_KEY)) {
-      this.saveData(this.defaultData);
-    }
-  },
-  
+  STORAGE_KEY: 'match3_tutorials',
+
+  // Стандартная структура данных
   getData() {
     try {
-      const data = localStorage.getItem(this.STORAGE_KEY);
-      return data ? JSON.parse(data) : { ...this.defaultData };
+      const raw = localStorage.getItem(this.STORAGE_KEY);
+      const data = raw ? JSON.parse(raw) : {};
+      
+      // Гарантируем структуру
+      return {
+        completed: data.completed || {},    // { tutorialId: true }
+        skipped: data.skipped || {},        // { tutorialId: true }
+        shown: data.shown || {},            // { tutorialId: timestamp }
+        failedAttempts: data.failedAttempts || {}, // { tutorialId: count }
+        analytics: data.analytics || {},    // { tutorialId: { started, completed, skipped, timeSpent } }
+        rewards: data.rewards || {},        // { tutorialId: { claimed: false } }
+        ...data
+      };
     } catch (e) {
-      console.error('TutorialStorage: Error reading data', e);
-      return { ...this.defaultData };
+      console.error('❌ TutorialStorage: Failed to read localStorage', e);
+      return {
+        completed: {},
+        skipped: {},
+        shown: {},
+        failedAttempts: {},
+        analytics: {},
+        rewards: {}
+      };
     }
   },
-  
+
   saveData(data) {
     try {
       localStorage.setItem(this.STORAGE_KEY, JSON.stringify(data));
     } catch (e) {
-      console.error('TutorialStorage: Error saving data', e);
+      console.error('❌ TutorialStorage: Failed to save to localStorage', e);
     }
   },
-  
-  isCompleted(tutorialId) {
+
+  // Проверка: нужно ли показывать туториал
+  shouldShow(tutorialId) {
     const data = this.getData();
-    return !!data.completedTutorials[tutorialId];
+    return !data.completed[tutorialId] && !data.skipped[tutorialId];
   },
-  
-  isSkipped(tutorialId) {
-    const data = this.getData();
-    return !!data.skippedTutorials[tutorialId];
-  },
-  
-  isShown(tutorialId) {
-    const data = this.getData();
-    return !!data.shownTutorials[tutorialId];
-  },
-  
+
+  // Отметить как завершённый
   markCompleted(tutorialId) {
     const data = this.getData();
-    data.completedTutorials[tutorialId] = Date.now();
-    data.shownTutorials[tutorialId] = true;
+    data.completed[tutorialId] = true;
+    data.shown[tutorialId] = Date.now();
+    
+    if (data.analytics[tutorialId]) {
+      data.analytics[tutorialId].completed = true;
+      data.analytics[tutorialId].completedAt = Date.now();
+    }
+    
     this.saveData(data);
-    this.trackAnalytics(tutorialId, 'completed');
   },
-  
+
+  // Отметить как пропущенный
   markSkipped(tutorialId) {
     const data = this.getData();
-    data.skippedTutorials[tutorialId] = Date.now();
-    data.shownTutorials[tutorialId] = true;
+    data.skipped[tutorialId] = true;
+    data.shown[tutorialId] = Date.now();
+    
+    if (data.analytics[tutorialId]) {
+      data.analytics[tutorialId].skipped = true;
+      data.analytics[tutorialId].skippedAt = Date.now();
+    }
+    
     this.saveData(data);
-    this.trackAnalytics(tutorialId, 'skipped');
   },
-  
-  markShown(tutorialId) {
-    const data = this.getData();
-    data.shownTutorials[tutorialId] = true;
-    this.saveData(data);
-  },
-  
-  addFailedAttempt(tutorialId) {
+
+  // Записать неудачную попытку
+  recordFailedAttempt(tutorialId) {
     const data = this.getData();
     data.failedAttempts[tutorialId] = (data.failedAttempts[tutorialId] || 0) + 1;
+    
+    if (data.analytics[tutorialId]) {
+      data.analytics[tutorialId].failedAttempts = data.failedAttempts[tutorialId];
+    }
+    
     this.saveData(data);
-    this.trackAnalytics(tutorialId, 'failed_attempt');
   },
-  
-  setFirstDiscovery(type) {
+
+  // Начать отслеживание времени
+  startAnalytics(tutorialId) {
     const data = this.getData();
-    if (data.firstDiscoveries[type] !== undefined) {
-      data.firstDiscoveries[type] = true;
+    if (!data.analytics[tutorialId]) {
+      data.analytics[tutorialId] = {};
+    }
+    data.analytics[tutorialId].started = true;
+    data.analytics[tutorialId].startedAt = Date.now();
+    data.analytics[tutorialId].timeSpent = 0;
+    this.saveData(data);
+  },
+
+  // Обновить время прохождения
+  updateTimeSpent(tutorialId) {
+    const data = this.getData();
+    if (data.analytics[tutorialId] && data.analytics[tutorialId].startedAt) {
+      const elapsed = Date.now() - data.analytics[tutorialId].startedAt;
+      data.analytics[tutorialId].timeSpent = Math.floor(elapsed / 1000);
       this.saveData(data);
     }
   },
-  
-  hasFirstDiscovery(type) {
-    const data = this.getData();
-    return !!data.firstDiscoveries[type];
+
+  // Получить все завершённые туториалы
+  getCompleted() {
+    return Object.keys(this.getData().completed);
   },
-  
-  trackAnalytics(tutorialId, event) {
-    const data = this.getData();
-    if (!data.analytics[tutorialId]) {
-      data.analytics[tutorialId] = {
-        started: null,
-        completed: null,
-        skipped: null,
-        failedAttempts: 0,
-        totalTime: 0,
-        events: []
-      };
-    }
-    
-    data.analytics[tutorialId].events.push({
-      event,
-      timestamp: Date.now()
-    });
-    
-    if (event === 'started') {
-      data.analytics[tutorialId].started = Date.now();
-    } else if (event === 'completed') {
-      data.analytics[tutorialId].completed = Date.now();
-      if (data.analytics[tutorialId].started) {
-        data.analytics[tutorialId].totalTime += 
-          Date.now() - data.analytics[tutorialId].started;
-      }
-    } else if (event === 'skipped') {
-      data.analytics[tutorialId].skipped = Date.now();
-    } else if (event === 'failed_attempt') {
-      data.analytics[tutorialId].failedAttempts++;
-    }
-    
-    this.saveData(data);
-  },
-  
-  getAnalytics(tutorialId) {
-    const data = this.getData();
-    return data.analytics[tutorialId] || null;
-  },
-  
+
+  // Сбросить всё (для отладки или настроек)
   resetAll() {
     localStorage.removeItem(this.STORAGE_KEY);
-    this.init();
   },
-  
-  resetTutorial(tutorialId) {
+
+  // Сбросить конкретный туториал
+  resetOne(tutorialId) {
     const data = this.getData();
-    delete data.completedTutorials[tutorialId];
-    delete data.skippedTutorials[tutorialId];
-    delete data.shownTutorials[tutorialId];
+    delete data.completed[tutorialId];
+    delete data.skipped[tutorialId];
+    delete data.shown[tutorialId];
     delete data.failedAttempts[tutorialId];
     delete data.analytics[tutorialId];
     this.saveData(data);
+  },
+
+  // Получить награду (монеты, бустеры)
+  claimReward(tutorialId) {
+    const data = this.getData();
+    if (!data.rewards[tutorialId]) {
+      data.rewards[tutorialId] = {};
+    }
+    
+    if (data.rewards[tutorialId].claimed) {
+      return null; // уже получена
+    }
+    
+    data.rewards[tutorialId].claimed = true;
+    this.saveData(data);
+    
+    // Возвращаем награду
+    const rewards = {
+      coins: 50  // базовая награда
+    };
+    
+    return rewards;
   }
 };
+
+// Для обратной совместимости — глобальный доступ
+window.TutorialStorage = TutorialStorage;
+console.log('📚 TutorialStorage initialized');
