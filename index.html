@@ -22,7 +22,12 @@
 <div id="menuScreen" class="screen active">
   <h1>Match-3</h1>
 
-  <button onclick="goTo('map')">Играть</button>
+  <button onclick="goTo('map')">🎮 Играть</button>
+  
+  <!-- 🎓 КНОПКА ТУТОРИАЛОВ -->
+  <button onclick="showTutorialMenu()" style="background: linear-gradient(135deg, #667eea, #764ba2);">
+    📚 Обучение
+  </button>
 </div>
 
 
@@ -53,8 +58,13 @@
   <div id="board"></div>
 
   <br>
-  <button onclick="restartLevel()">Заново</button>
-  <button onclick="goTo('map')">Назад</button>
+  <button onclick="restartLevel()">🔄 Заново</button>
+  <button onclick="goTo('map')">🗺️ Назад</button>
+  
+  <!-- 🎓 КНОПКА ТУТОРИАЛОВ НА ИГРОВОМ ЭКРАНЕ -->
+  <button onclick="showTutorialMenu()" style="background: linear-gradient(135deg, #667eea, #764ba2); font-size: 14px; padding: 8px 16px;">
+    📚 Обучение
+  </button>
 </div>
 
 
@@ -92,10 +102,11 @@
 <script src="tutorial/tutorialBoards.js"></script>
 <script src="tutorial/ghostHand.js"></script>
 <script src="tutorial/tutorialOverlay.js"></script>
+<script src="tutorial/tutorialAnalytics.js"></script>
 <script src="tutorial/tutorialManager.js"></script>
 
 <!-- MAIN -->
 <script src="js/main.js"></script>
 
 </body>
-  </html>
+</html>
