@@ -1,315 +1,286 @@
-// ==================== tutorial/tutorialOverlay.js ====================
+// tutorial/tutorialOverlay.js
+// ================= TUTORIAL OVERLAY SYSTEM =================
+// Управляет затемнением, подсветкой клеток, попапами
 
 const TutorialOverlay = {
   overlay: null,
-  popup: null,
-  highlightElements: [],
-  
-  init() {
-    this.createOverlay();
-    this.createPopup();
-  },
-  
-  createOverlay() {
+  highlightCells: [],
+  dimmedCells: [],
+  popupElement: null,
+  isActive: false,
+
+  // Создать затемняющий слой
+  create() {
+    if (this.overlay) return;
+
+    // Основной оверлей
     this.overlay = document.createElement('div');
     this.overlay.id = 'tutorialOverlay';
-    this.overlay.className = 'tutorial-overlay';
-    this.overlay.style.display = 'none';
+    Object.assign(this.overlay.style, {
+      position: 'fixed',
+      top: '0',
+      left: '0',
+      width: '100%',
+      height: '100%',
+      backgroundColor: 'rgba(0, 0, 0, 0.7)',
+      zIndex: '9990',
+      pointerEvents: 'none',
+      opacity: '0',
+      transition: 'opacity 0.4s ease'
+    });
+
+    // Контейнер для "окон" в оверлее
+    const holes = document.createElement('div');
+    holes.id = 'tutorialHoles';
+    holes.style.cssText = 'position:relative;width:100%;height:100%;';
+    this.overlay.appendChild(holes);
+
     document.body.appendChild(this.overlay);
-    
-    const style = document.createElement('style');
-    style.textContent = `
-      .tutorial-overlay {
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background: rgba(0, 0, 0, 0.7);
-        z-index: 9998;
-        pointer-events: all;
-      }
-      
-      .tutorial-highlight {
-        position: absolute;
-        border: 3px solid #FFD700;
-        border-radius: 10px;
-        box-shadow: 0 0 20px rgba(255, 215, 0, 0.6),
-                    0 0 40px rgba(255, 215, 0, 0.3),
-                    inset 0 0 20px rgba(255, 215, 0, 0.2);
-        animation: tutorialGlow 1.5s ease-in-out infinite;
-        z-index: 9999;
-        pointer-events: none;
-      }
-      
-      @keyframes tutorialGlow {
-        0%, 100% { 
-          box-shadow: 0 0 20px rgba(255, 215, 0, 0.6),
-                      0 0 40px rgba(255, 215, 0, 0.3),
-                      inset 0 0 20px rgba(255, 215, 0, 0.2);
-        }
-        50% { 
-          box-shadow: 0 0 30px rgba(255, 215, 0, 0.8),
-                      0 0 60px rgba(255, 215, 0, 0.5),
-                      inset 0 0 30px rgba(255, 215, 0, 0.4);
-        }
-      }
-      
-      .tutorial-highlight-pulse {
-        animation: tutorialPulse 1s ease-in-out infinite;
-      }
-      
-      @keyframes tutorialPulse {
-        0%, 100% { transform: scale(1); }
-        50% { transform: scale(1.05); }
-      }
-      
-      .tutorial-dimmed {
-        filter: brightness(0.3);
-        transition: filter 0.3s ease;
-      }
-      
-      .tutorial-popup {
-        position: fixed;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        border-radius: 20px;
-        padding: 30px;
-        z-index: 10001;
-        min-width: 320px;
-        max-width: 500px;
-        text-align: center;
-        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
-        animation: popupSlideIn 0.3s ease-out;
-      }
-      
-      @keyframes popupSlideIn {
-        from {
-          opacity: 0;
-          transform: translate(-50%, -50%) scale(0.8);
-        }
-        to {
-          opacity: 1;
-          transform: translate(-50%, -50%) scale(1);
-        }
-      }
-      
-      .tutorial-popup-icon {
-        font-size: 64px;
-        margin-bottom: 15px;
-        animation: iconBounce 1s ease-in-out infinite;
-      }
-      
-      @keyframes iconBounce {
-        0%, 100% { transform: translateY(0); }
-        50% { transform: translateY(-10px); }
-      }
-      
-      .tutorial-popup-title {
-        font-size: 24px;
-        font-weight: bold;
-        color: #fff;
-        margin-bottom: 10px;
-        text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
-      }
-      
-      .tutorial-popup-description {
-        font-size: 16px;
-        color: rgba(255, 255, 255, 0.9);
-        margin-bottom: 20px;
-        line-height: 1.5;
-      }
-      
-      .tutorial-popup-btn {
-        background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-        color: white;
-        border: none;
-        padding: 12px 40px;
-        border-radius: 25px;
-        font-size: 18px;
-        font-weight: bold;
-        cursor: pointer;
-        transition: transform 0.2s, box-shadow 0.2s;
-        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
-      }
-      
-      .tutorial-popup-btn:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
-      }
-      
-      .tutorial-skip-btn {
-        background: transparent;
-        border: 2px solid rgba(255, 255, 255, 0.5);
-        color: rgba(255, 255, 255, 0.7);
-        padding: 8px 25px;
-        border-radius: 25px;
-        font-size: 14px;
-        cursor: pointer;
-        margin-top: 15px;
-        transition: all 0.2s;
-      }
-      
-      .tutorial-skip-btn:hover {
-        border-color: rgba(255, 255, 255, 0.8);
-        color: rgba(255, 255, 255, 0.9);
-      }
-      
-      .tutorial-arrow {
-        position: absolute;
-        color: #FFD700;
-        font-size: 36px;
-        animation: arrowBounce 1s ease-in-out infinite;
-        z-index: 9999;
-        pointer-events: none;
-      }
-      
-      @keyframes arrowBounce {
-        0%, 100% { transform: translateY(0); }
-        50% { transform: translateY(-15px); }
-      }
-    `;
-    document.head.appendChild(style);
+    this.holesContainer = holes;
   },
-  
-  createPopup() {
-    this.popup = document.createElement('div');
-    this.popup.id = 'tutorialPopup';
-    this.popup.className = 'tutorial-popup';
-    this.popup.style.display = 'none';
-    document.body.appendChild(this.popup);
-  },
-  
-  showOverlay() {
-    if (this.overlay) {
-      this.overlay.style.display = 'block';
-    }
-  },
-  
-  hideOverlay() {
-    if (this.overlay) {
-      this.overlay.style.display = 'none';
-    }
+
+  // Показать оверлей с подсветкой конкретных клеток
+  show(highlightPositions = []) {
+    if (!this.overlay) this.create();
+
+    this.isActive = true;
     this.clearHighlights();
-  },
-  
-  highlightCells(cells, animate = true) {
-    this.clearHighlights();
-    
-    cells.forEach(cellElement => {
-      if (!cellElement) return;
-      
-      const rect = cellElement.getBoundingClientRect();
-      const highlight = document.createElement('div');
-      highlight.className = 'tutorial-highlight' + (animate ? ' tutorial-highlight-pulse' : '');
-      highlight.style.left = (rect.left - 5) + 'px';
-      highlight.style.top = (rect.top - 5) + 'px';
-      highlight.style.width = (rect.width + 10) + 'px';
-      highlight.style.height = (rect.height + 10) + 'px';
-      
-      document.body.appendChild(highlight);
-      this.highlightElements.push(highlight);
+
+    // Показываем оверлей
+    this.overlay.style.display = 'block';
+    requestAnimationFrame(() => {
+      this.overlay.style.opacity = '1';
     });
-  },
-  
-  dimOtherCells(keepCells) {
-    const allCells = document.querySelectorAll('.cell');
-    allCells.forEach(cell => {
-      if (!keepCells.includes(cell)) {
-        cell.classList.add('tutorial-dimmed');
-      } else {
-        cell.classList.remove('tutorial-dimmed');
+
+    // Создаём "окна" для подсвеченных клеток
+    highlightPositions.forEach(pos => {
+      this.createHole(pos.x, pos.y);
+    });
+
+    // Добавляем свечение на клетки
+    highlightPositions.forEach(pos => {
+      const cell = cells[pos.y] && cells[pos.y][pos.x];
+      if (cell) {
+        cell.classList.add('tutorial-highlight');
+        cell.style.zIndex = '9995';
+        
+        // Анимированная рамка
+        cell.style.boxShadow = `
+          0 0 15px rgba(255, 255, 255, 0.8),
+          0 0 30px rgba(255, 215, 0, 0.6),
+          inset 0 0 15px rgba(255, 255, 255, 0.3)
+        `;
+        cell.style.animation = 'tutorialPulse 1.5s ease-in-out infinite';
+        
+        this.highlightCells.push(cell);
       }
     });
+
+    // Затемняем все остальные клетки
+    this.dimOtherCells(highlightPositions);
   },
-  
-  showPopup(config) {
-    if (!this.popup) return;
+
+  // Создать "окно" в оверлее над клеткой
+  createHole(x, y) {
+    const cell = cells[y] && cells[y][x];
+    if (!cell) return;
+
+    const cellRect = cell.getBoundingClientRect();
+    const overlayRect = this.overlay.getBoundingClientRect();
+
+    const hole = document.createElement('div');
+    hole.className = 'tutorial-hole';
     
-    const { title, description, icon, onContinue, onSkip } = config;
+    // Позиционируем "окно"
+    const left = cellRect.left - overlayRect.left - 5;
+    const top = cellRect.top - overlayRect.top - 5;
+    const width = cellRect.width + 10;
+    const height = cellRect.height + 10;
+
+    Object.assign(hole.style, {
+      position: 'absolute',
+      left: left + 'px',
+      top: top + 'px',
+      width: width + 'px',
+      height: height + 'px',
+      backgroundColor: 'transparent',
+      boxShadow: '0 0 0 9999px rgba(0, 0, 0, 0.7)',
+      borderRadius: '8px',
+      zIndex: '9991',
+      pointerEvents: 'none'
+    });
+
+    this.holesContainer.appendChild(hole);
+    this.dimmedCells.push(hole);
+  },
+
+  // Затемнить неиспользуемые клетки
+  dimOtherCells(exceptPositions) {
+    const exceptSet = new Set(exceptPositions.map(p => `${p.x},${p.y}`));
     
-    this.popup.innerHTML = `
-      ${icon ? `<div class="tutorial-popup-icon">${icon}</div>` : ''}
-      <div class="tutorial-popup-title">${title || ''}</div>
-      <div class="tutorial-popup-description">${description || ''}</div>
-      <button class="tutorial-popup-btn" id="tutorialContinueBtn">
-        ${config.continueText || 'Continue'}
-      </button>
-      ${config.showSkip !== false ? `
-        <br>
-        <button class="tutorial-skip-btn" id="tutorialSkipBtn">Skip Tutorial</button>
-      ` : ''}
+    for (let y = 0; y < SIZE; y++) {
+      for (let x = 0; x < SIZE; x++) {
+        if (exceptSet.has(`${x},${y}`)) continue;
+        
+        const cell = cells[y] && cells[y][x];
+        if (cell) {
+          cell.style.filter = 'brightness(0.4) saturate(0.3)';
+          cell.style.pointerEvents = 'none';
+          this.dimmedCells.push(cell);
+        }
+      }
+    }
+  },
+
+  // Показать обучающий попап
+  showPopup(title, description, icon = '📚', onContinue = null) {
+    // Убираем старый попап
+    this.hidePopup();
+
+    this.popupElement = document.createElement('div');
+    this.popupElement.id = 'tutorialPopup';
+    this.popupElement.innerHTML = `
+      <div class="tutorial-popup-overlay">
+        <div class="tutorial-popup-container">
+          <div class="tutorial-popup-icon">${icon}</div>
+          <h2 class="tutorial-popup-title">${title}</h2>
+          <p class="tutorial-popup-description">${description}</p>
+          <div class="tutorial-popup-buttons">
+            <button class="tutorial-btn tutorial-btn-skip" id="tutorialSkipBtn">
+              Пропустить
+            </button>
+            <button class="tutorial-btn tutorial-btn-continue" id="tutorialContinueBtn">
+              Продолжить ✨
+            </button>
+          </div>
+        </div>
+      </div>
     `;
-    
-    this.popup.style.display = 'block';
-    
-    document.getElementById('tutorialContinueBtn')?.addEventListener('click', () => {
+
+    document.body.appendChild(this.popupElement);
+
+    // Обработчики кнопок
+    document.getElementById('tutorialContinueBtn').addEventListener('click', () => {
       this.hidePopup();
       if (onContinue) onContinue();
     });
-    
-    document.getElementById('tutorialSkipBtn')?.addEventListener('click', () => {
+
+    document.getElementById('tutorialSkipBtn').addEventListener('click', () => {
       this.hidePopup();
-      if (onSkip) onSkip();
+      // Будет обработано в TutorialManager
+      if (window.TutorialManager) {
+        window.TutorialManager.skipCurrent();
+      }
     });
   },
-  
+
+  // Скрыть попап
   hidePopup() {
-    if (this.popup) {
-      this.popup.style.display = 'none';
+    if (this.popupElement) {
+      this.popupElement.remove();
+      this.popupElement = null;
     }
   },
-  
+
+  // Очистить все подсветки
   clearHighlights() {
-    this.highlightElements.forEach(el => el.remove());
-    this.highlightElements = [];
-    
-    const allCells = document.querySelectorAll('.cell');
-    allCells.forEach(cell => cell.classList.remove('tutorial-dimmed'));
-  },
-  
-  showWrongMoveEffect(cells) {
-    cells.forEach(cell => {
-      if (!cell) return;
-      cell.style.animation = 'none';
-      cell.offsetHeight; // Trigger reflow
-      cell.style.animation = 'shake 0.5s ease-in-out';
+    // Убираем классы с клеток
+    this.highlightCells.forEach(cell => {
+      cell.classList.remove('tutorial-highlight');
+      cell.style.boxShadow = '';
+      cell.style.animation = '';
+      cell.style.zIndex = '';
     });
-    
-    setTimeout(() => {
-      cells.forEach(cell => {
-        if (cell) cell.style.animation = '';
-      });
-    }, 500);
-    
-    // Добавляем стиль shake если его нет
-    if (!document.getElementById('tutorialShakeStyle')) {
-      const style = document.createElement('style');
-      style.id = 'tutorialShakeStyle';
-      style.textContent = `
-        @keyframes shake {
-          0%, 100% { transform: translateX(0); }
-          10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
-          20%, 40%, 60%, 80% { transform: translateX(5px); }
-        }
-      `;
-      document.head.appendChild(style);
+    this.highlightCells = [];
+
+    // Убираем затемнение
+    this.dimmedCells.forEach(el => {
+      if (el.classList && el.classList.contains('tutorial-hole')) {
+        el.remove();
+      } else {
+        el.style.filter = '';
+        el.style.pointerEvents = '';
+      }
+    });
+    this.dimmedCells = [];
+
+    // Очищаем контейнер с окнами
+    if (this.holesContainer) {
+      this.holesContainer.innerHTML = '';
     }
   },
-  
-  destroy() {
-    this.hideOverlay();
-    this.hidePopup();
+
+  // Полностью скрыть оверлей
+  hide() {
+    this.isActive = false;
     this.clearHighlights();
-    if (this.overlay && this.overlay.parentNode) {
-      this.overlay.parentNode.removeChild(this.overlay);
+    this.hidePopup();
+
+    if (this.overlay) {
+      this.overlay.style.opacity = '0';
+      setTimeout(() => {
+        if (!this.isActive) {
+          this.overlay.style.display = 'none';
+        }
+      }, 400);
     }
-    if (this.popup && this.popup.parentNode) {
-      this.popup.parentNode.removeChild(this.popup);
+
+    // Восстанавливаем все клетки
+    for (let y = 0; y < SIZE; y++) {
+      for (let x = 0; x < SIZE; x++) {
+        const cell = cells[y] && cells[y][x];
+        if (cell) {
+          cell.style.filter = '';
+          cell.style.pointerEvents = '';
+          cell.style.zIndex = '';
+          cell.style.boxShadow = '';
+          cell.style.animation = '';
+        }
+      }
     }
-    this.overlay = null;
-    this.popup = null;
+  },
+
+  // Показать сообщение о неправильном действии
+  showWrongMove(message = 'Попробуй другой ход!') {
+    const toast = document.createElement('div');
+    toast.className = 'tutorial-wrong-move';
+    toast.textContent = message;
+    
+    Object.assign(toast.style, {
+      position: 'fixed',
+      top: '20%',
+      left: '50%',
+      transform: 'translateX(-50%)',
+      backgroundColor: 'rgba(255, 59, 48, 0.9)',
+      color: 'white',
+      padding: '12px 24px',
+      borderRadius: '25px',
+      fontSize: '16px',
+      fontWeight: 'bold',
+      zIndex: '10001',
+      animation: 'shakeWrong 0.5s ease',
+      pointerEvents: 'none'
+    });
+
+    document.body.appendChild(toast);
+
+    // Трясём клетки
+    this.shakeTargetCells();
+
+    setTimeout(() => {
+      toast.remove();
+    }, 2000);
+  },
+
+  shakeTargetCells() {
+    this.highlightCells.forEach(cell => {
+      cell.style.animation = 'shakeWrong 0.5s ease';
+      setTimeout(() => {
+        cell.style.animation = 'tutorialPulse 1.5s ease-in-out infinite';
+      }, 500);
+    });
   }
 };
+
+window.TutorialOverlay = TutorialOverlay;
+console.log('🖼️ TutorialOverlay initialized');
