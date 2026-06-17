@@ -558,6 +558,12 @@ function startLevel(){
 // ================= INIT LEVEL =================
 
 function initLevel(){
+  // 🎓 TUTORIAL INTEGRATION: Если туториал активен, он сам управляет доской
+  if (typeof TutorialManager !== 'undefined' && TutorialManager.isActive) {
+    console.log('🎓 Tutorial active, letting TutorialManager handle the board');
+    return;
+  }
+  
   levelFinished = false
   gameLocked = false
   isAnimating = false
@@ -721,6 +727,18 @@ function handleDragStart(x, y, e) {
   
   if(gameLocked || isAnimating || isProcessingSpecial) return
   
+  // 🎓 TUTORIAL INTEGRATION: Блокируем нетаргетные клетки
+  if (typeof TutorialManager !== 'undefined' && TutorialManager.isActive && TutorialManager.inputLocked) {
+    const targetAction = TutorialManager.expectedAction;
+    if (targetAction && targetAction.from) {
+      const isTargetCell = (x === targetAction.from.x && y === targetAction.from.y);
+      if (!isTargetCell) {
+        console.log('🚫 Tutorial: Non-target cell blocked');
+        return;
+      }
+    }
+  }
+  
   lastClickTime = now
   
   const pos = InputManager.getPosition(e);
@@ -835,6 +853,30 @@ async function onCellClick(x, y){
   const now = Date.now()
   if(now - lastClickTime < CLICK_COOLDOWN) return
   
+  // 🎓 TUTORIAL INTEGRATION: Проверка таргетных клеток
+  if (typeof TutorialManager !== 'undefined' && TutorialManager.isActive && TutorialManager.inputLocked) {
+    const targetAction = TutorialManager.expectedAction;
+    if (targetAction && targetAction.from && targetAction.to) {
+      const isTargetCell = 
+        (selected && selected.x === targetAction.from.x && selected.y === targetAction.from.y && 
+         x === targetAction.to.x && y === targetAction.to.y) ||
+        (!selected && x === targetAction.from.x && y === targetAction.from.y);
+      
+      if (!isTargetCell) {
+        // Проверяем, это начало неправильного действия или завершение
+        if (selected) {
+          // Неправильный свайп
+          if (typeof TutorialManager.handleWrongMove === 'function') {
+            clearHighlight();
+            selected = null;
+            TutorialManager.handleWrongMove(x, y);
+          }
+        }
+        return;
+      }
+    }
+  }
+  
   if(gameLocked || isAnimating || isProcessingSpecial) return
   if(x<0 || x>=SIZE || y<0 || y>=SIZE) return
   
@@ -897,6 +939,12 @@ async function onCellClick(x, y){
     checkWin()
     startHintTimer()
     isAnimating = false
+    
+    // 🎓 TUTORIAL: Сообщаем об успешном действии
+    if (typeof TutorialManager !== 'undefined' && TutorialManager.isActive) {
+      TutorialManager.handleCorrectMove(b.x, b.y);
+    }
+    
     return
   }
   
@@ -930,6 +978,12 @@ async function onCellClick(x, y){
     isAnimating = false
     
     ComboManager.reset()
+    
+    // 🎓 TUTORIAL: Сообщаем об успешном действии
+    if (typeof TutorialManager !== 'undefined' && TutorialManager.isActive) {
+      TutorialManager.handleCorrectMove(b.x, b.y);
+    }
+    
     return
   }
   
@@ -941,6 +995,11 @@ async function onCellClick(x, y){
     renderBoard()
     
     await delay(150)
+    
+    // 🎓 TUTORIAL: Неправильный ход
+    if (typeof TutorialManager !== 'undefined' && TutorialManager.isActive) {
+      TutorialManager.handleWrongMove(b.x, b.y);
+    }
     
     isAnimating = false
     return
@@ -958,6 +1017,11 @@ async function onCellClick(x, y){
   isAnimating = false
   
   ComboManager.reset()
+  
+  // 🎓 TUTORIAL: Сообщаем об успешном действии
+  if (typeof TutorialManager !== 'undefined' && TutorialManager.isActive) {
+    TutorialManager.handleCorrectMove(b.x, b.y);
+  }
 }
 
 
@@ -1030,6 +1094,11 @@ async function processMatchesAsync(){
   
   if(matches.length === 0){
     if(!hasPossibleMoves()){
+      // 🎓 TUTORIAL: Блокируем шаффл во время туториала
+      if (typeof TutorialManager !== 'undefined' && TutorialManager.isActive) {
+        console.log('🚫 Tutorial: Shuffle blocked in processMatchesAsync');
+        return;
+      }
       await shuffleBoardAsync()
     }
     return
@@ -1289,6 +1358,12 @@ function swapTest(x1, y1, x2, y2){
 // ================= SHUFFLE =================
 
 async function shuffleBoardAsync(){
+  // 🎓 TUTORIAL: Блокируем шаффл во время туториала
+  if (typeof TutorialManager !== 'undefined' && TutorialManager.isActive) {
+    console.log('🚫 Tutorial: Shuffle blocked');
+    return;
+  }
+  
   do {
     for(let y=0; y<SIZE; y++){
       for(let x=0; x<SIZE; x++){
@@ -1302,6 +1377,12 @@ async function shuffleBoardAsync(){
 }
 
 function shuffleBoard(){
+  // 🎓 TUTORIAL: Блокируем шаффл во время туториала
+  if (typeof TutorialManager !== 'undefined' && TutorialManager.isActive) {
+    console.log('🚫 Tutorial: Shuffle blocked');
+    return;
+  }
+  
   for(let y=0; y<SIZE; y++){
     for(let x=0; x<SIZE; x++){
       board[y][x] = randomColor()
@@ -1314,6 +1395,11 @@ function shuffleBoard(){
 // ================= HINT SYSTEM =================
 
 function startHintTimer(){
+  // 🎓 TUTORIAL: Не запускаем обычные подсказки во время туториала
+  if (typeof TutorialManager !== 'undefined' && TutorialManager.isActive) {
+    return;
+  }
+  
   clearTimeout(hintTimer)
   hintTimer = setTimeout(showHint, 4000)
 }
@@ -1462,6 +1548,11 @@ function checkWin(){
     return
   }
   
+  // 🎓 TUTORIAL: Не проигрываем во время туториала
+  if (typeof TutorialManager !== 'undefined' && TutorialManager.isActive) {
+    return;
+  }
+  
   if(movesLeft <= 0){
     loseLevel()
   }
@@ -1583,4 +1674,60 @@ function animateCoins(){
     
     setTimeout(() => coin.remove(), 900)
   }
+}
+
+// ================= TUTORIAL MENU (OPTIONAL) =================
+
+function showTutorialMenu() {
+  if (typeof TutorialManager === 'undefined') {
+    showPopup('<h2>Обучение</h2><p>Система обучения недоступна.</p><button onclick="hidePopup()">Закрыть</button>');
+    return;
+  }
+  
+  const tutorials = TutorialManager.getAllTutorials();
+  
+  let html = '<h2>📚 Обучение</h2><div style="max-height:55vh;overflow-y:auto;padding:10px;">';
+  
+  tutorials.forEach(t => {
+    const status = t.completed ? '✅' : '⬜';
+    const statusText = t.completed ? 'Пройден' : 'Доступен';
+    html += `
+      <div style="
+        padding:12px;
+        margin:8px 0;
+        background:linear-gradient(135deg, #1a1a2e, #16213e);
+        border-radius:12px;
+        display:flex;
+        align-items:center;
+        gap:10px;
+        border:1px solid rgba(255,255,255,0.1);
+      ">
+        <span style="font-size:28px;">${t.icon}</span>
+        <div style="flex:1;">
+          <div style="color:#ffd700;font-weight:bold;">${t.title}</div>
+          <div style="color:#aaa;font-size:12px;">${status} ${statusText}</div>
+        </div>
+        <button onclick="TutorialManager.replay('${t.id}')" 
+          style="
+            padding:8px 16px;
+            border-radius:20px;
+            background:linear-gradient(135deg, #ffd700, #ffaa00);
+            color:#1a1a2e;
+            border:none;
+            cursor:pointer;
+            font-weight:bold;
+            font-size:13px;
+            white-space:nowrap;
+          ">
+          Повторить
+        </button>
+      </div>
+    `;
+  });
+  
+  html += '</div>';
+  html += '<button onclick="hidePopup()" style="margin-top:10px;">Закрыть</button>';
+  html += '<button onclick="if(confirm(\'Сбросить ВСЕ туториалы? Все обучения будут показаны заново.\'))TutorialManager.resetAll();hidePopup();" style="margin-top:5px;background:#555;color:#fff;border-radius:20px;padding:8px 16px;border:none;cursor:pointer;">🔄 Сбросить всё</button>';
+  
+  showPopup(html);
 }
