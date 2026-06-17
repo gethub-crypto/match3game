@@ -1,15 +1,9 @@
 // tutorial/tutorialManager.js
-// ================= TUTORIAL MANAGER (FIXED v4 — ПРАВИЛЬНЫЕ КЛЮЧИ) =================
+// ================= TUTORIAL MANAGER (FIXED v5) =================
 
 const TutorialManager = {
   isActive: false,
   currentTutorial: null,
-  currentStep: 0,
-  
-  originalGameLocked: false,
-  originalIsAnimating: false,
-  inputLocked: false,
-  boardReady: false,
   waitingForCorrectMove: false,
   
   hintTimer: null,
@@ -39,22 +33,22 @@ const TutorialManager = {
         description: 'Свайпай соседние фишки, чтобы собрать 3 одинаковых в ряд!',
         icon: '👆', trigger: 'level_1', board: 'basicSwipe', reward: { coins: 25 },
         highlightCells: [{ x: 4, y: 4 }, { x: 3, y: 4 }],
-        targetAction: { type: 'swipe', from: { x: 4, y: 4 }, to: { x: 3, y: 4 }, description: 'Свайпни красную фишку вверх к другим красным' }
+        targetAction: { type: 'swipe', from: { x: 4, y: 4 }, to: { x: 3, y: 4 }, description: 'Свайпни красную фишку вверх' }
       },
       create_rocket: {
         id: 'create_rocket', type: 'create_special', title: 'Создание ракеты 🚀',
         description: 'Собери 4 фишки в ряд, чтобы создать ракету!',
         icon: '🚀', trigger: 'level_2', board: 'createRocket', reward: { coins: 50 },
         highlightCells: [{ x: 3, y: 4 }, { x: 3, y: 3 }],
-        targetAction: { type: 'swipe', from: { x: 3, y: 4 }, to: { x: 3, y: 3 }, description: 'Свайпни красную фишку, чтобы создать 4 в ряд' },
+        targetAction: { type: 'swipe', from: { x: 3, y: 4 }, to: { x: 3, y: 3 }, description: 'Свайпни красную фишку вверх' },
         expectedSpecial: 'rocket'
       },
       create_bomb: {
         id: 'create_bomb', type: 'create_special', title: 'Создание бомбы 💣',
-        description: 'Собери фишки в форме буквы L или T, чтобы создать бомбу!',
+        description: 'Собери фишки L или T формы, чтобы создать бомбу!',
         icon: '💣', trigger: 'level_3', board: 'createBomb', reward: { coins: 50 },
         highlightCells: [{ x: 4, y: 4 }, { x: 3, y: 4 }],
-        targetAction: { type: 'swipe', from: { x: 4, y: 4 }, to: { x: 3, y: 4 }, description: 'Свайпни зелёную фишку для создания L-формы' },
+        targetAction: { type: 'swipe', from: { x: 4, y: 4 }, to: { x: 3, y: 4 }, description: 'Свайпни зелёную фишку влево' },
         expectedSpecial: 'bomb'
       },
       create_rainbow: {
@@ -62,7 +56,7 @@ const TutorialManager = {
         description: 'Собери 5 фишек в ряд, чтобы создать радугу!',
         icon: '🌈', trigger: 'level_4', board: 'createRainbow', reward: { coins: 75 },
         highlightCells: [{ x: 3, y: 4 }, { x: 3, y: 3 }],
-        targetAction: { type: 'swipe', from: { x: 3, y: 4 }, to: { x: 3, y: 3 }, description: 'Свайпни жёлтую фишку, чтобы создать 5 в ряд' },
+        targetAction: { type: 'swipe', from: { x: 3, y: 4 }, to: { x: 3, y: 3 }, description: 'Свайпни жёлтую фишку вверх' },
         expectedSpecial: 'color'
       },
       rocket_rocket: {
@@ -70,7 +64,7 @@ const TutorialManager = {
         description: 'Объедини две ракеты! Супер-крест очистит ряд и колонну.',
         icon: '🚀🚀', trigger: 'level_5', board: 'rocketRocket', reward: { coins: 100 },
         highlightCells: [{ x: 3, y: 3 }, { x: 4, y: 3 }],
-        targetAction: { type: 'swipe', from: { x: 3, y: 3 }, to: { x: 4, y: 3 }, description: 'Свайпни одну ракету к другой' },
+        targetAction: { type: 'swipe', from: { x: 3, y: 3 }, to: { x: 4, y: 3 }, description: 'Свайпни ракету к ракете' },
         expectedCombo: 'rocket_rocket', specialA: 'rocket', specialB: 'rocket'
       },
       rocket_bomb: {
@@ -94,7 +88,7 @@ const TutorialManager = {
         description: 'Мега-взрыв очистит огромную область!',
         icon: '💣💣', trigger: 'level_8', board: 'bombBomb', reward: { coins: 150 },
         highlightCells: [{ x: 3, y: 3 }, { x: 4, y: 3 }],
-        targetAction: { type: 'swipe', from: { x: 3, y: 3 }, to: { x: 4, y: 3 }, description: 'Свайпни одну бомбу к другой' },
+        targetAction: { type: 'swipe', from: { x: 3, y: 3 }, to: { x: 4, y: 3 }, description: 'Свайпни бомбу к бомбе' },
         expectedCombo: 'bomb_bomb', specialA: 'bomb', specialB: 'bomb'
       },
       bomb_rainbow: {
@@ -110,7 +104,7 @@ const TutorialManager = {
         description: 'Очищает ВСЁ поле! Самая мощная комбинация!',
         icon: '🌈🌈', trigger: 'level_10', board: 'rainbowRainbow', reward: { coins: 200 },
         highlightCells: [{ x: 3, y: 3 }, { x: 4, y: 3 }],
-        targetAction: { type: 'swipe', from: { x: 3, y: 3 }, to: { x: 4, y: 3 }, description: 'Свайпни одну радугу к другой' },
+        targetAction: { type: 'swipe', from: { x: 3, y: 3 }, to: { x: 4, y: 3 }, description: 'Свайпни радугу к радуге' },
         expectedCombo: 'rainbow_rainbow', specialA: 'color', specialB: 'color'
       }
     };
@@ -119,7 +113,6 @@ const TutorialManager = {
   // ================= ХУКИ =================
   installHooks() {
     const self = this;
-
     const originalOnCellClick = window.onCellClick;
     
     window.onCellClick = async function(x, y) {
@@ -128,19 +121,13 @@ const TutorialManager = {
         
         if (target && target.from && target.to) {
           if (!selected) {
-            if (x === target.from.x && y === target.from.y) {
-              console.log('✅ Tutorial: Correct first cell');
-            } else {
-              console.log('❌ Tutorial: Wrong first cell');
+            if (x !== target.from.x || y !== target.from.y) {
               self.handleWrongMove(x, y);
               return;
             }
           } else {
-            if (selected.x === target.from.x && selected.y === target.from.y &&
-                x === target.to.x && y === target.to.y) {
-              console.log('✅ Tutorial: Correct swipe!');
-            } else {
-              console.log('❌ Tutorial: Wrong swipe');
+            if (selected.x !== target.from.x || selected.y !== target.from.y ||
+                x !== target.to.x || y !== target.to.y) {
               clearHighlight();
               selected = null;
               self.handleWrongMove(x, y);
@@ -155,7 +142,7 @@ const TutorialManager = {
       }
     };
 
-    console.log('🔗 TutorialManager: Hooks installed');
+    console.log('🔗 Hooks installed');
   },
 
   // ================= ЗАПУСК =================
@@ -167,19 +154,19 @@ const TutorialManager = {
     }
 
     if (!TutorialStorage.shouldShow(tutorialId)) {
-      console.log(`📚 Tutorial "${tutorialId}" already done`);
+      console.log(`📚 "${tutorialId}" already done`);
       return false;
     }
 
-    console.log(`🎓 Starting tutorial: "${tutorialId}"`);
-
-    if (!cells || cells.length === 0) {
-      console.warn('⚠️ Board not ready, retrying...');
-      setTimeout(() => this.start(tutorialId), 300);
+    // Проверяем что мы на игровом экране и доска существует
+    const boardEl = document.getElementById("board");
+    if (!boardEl || !cells || cells.length === 0) {
+      console.warn('⚠️ Not on game screen — cannot start tutorial');
       return false;
     }
 
-    this.saveGameState();
+    console.log(`🎓 Starting: "${tutorialId}"`);
+
     this.isActive = true;
     this.currentTutorial = tutorial;
     this.waitingForCorrectMove = false;
@@ -212,7 +199,7 @@ const TutorialManager = {
 
     const boardData = TutorialBoards.getBoard(tutorial.id);
     if (!boardData || !boardData.board) {
-      console.error(`❌ No board data for "${tutorial.id}"`);
+      console.error(`❌ No board for "${tutorial.id}"`);
       return;
     }
 
@@ -231,7 +218,7 @@ const TutorialManager = {
       
       for (let x = 0; x < SIZE; x++) {
         const cellData = (boardData.board[y] && boardData.board[y][x] !== undefined) 
-          ? boardData.board[y][x] : null;
+          ? boardData.board[y][x] : COLORS[Math.floor(Math.random() * COLORS.length)];
         
         board[y][x] = cellData;
         
@@ -248,23 +235,22 @@ const TutorialManager = {
       }
     }
 
-    this.expectedAction = boardData.targetAction;
+    this.expectedAction = boardData.targetAction || tutorial.targetAction;
     this.expectedMatch = boardData.expectedMatch;
-    this.expectedCombo = boardData.expectedCombo;
-    this.expectedSpecial = boardData.expectedSpecial;
+    this.expectedCombo = boardData.expectedCombo || tutorial.expectedCombo;
+    this.expectedSpecial = boardData.expectedSpecial || tutorial.expectedSpecial;
 
     window.shuffleBoard = function() {
-      console.log('🚫 Tutorial: Shuffle blocked');
+      console.log('🚫 Shuffle blocked');
     };
     
-    console.log('📋 Tutorial board loaded');
+    console.log('📋 Board loaded');
   },
 
   onPopupClosed() {
-    console.log('🎓 Popup closed — waiting for correct move');
+    console.log('🎓 Waiting for correct move');
     this.waitingForCorrectMove = true;
     gameLocked = false;
-    this.inputLocked = false;
     this.startHintTimers();
     this.scheduleGhostHand();
     this.lastInteractionTime = Date.now();
@@ -272,23 +258,16 @@ const TutorialManager = {
   },
 
   handleWrongMove(x, y) {
-    console.log('❌ Wrong move');
     if (this.currentTutorial) {
       TutorialStorage.recordFailedAttempt(this.currentTutorial.id);
-      if (typeof TutorialAnalytics !== 'undefined') {
-        TutorialAnalytics.track('wrong_move', { tutorialId: this.currentTutorial.id });
-      }
     }
-    const message = this.currentTutorial?.targetAction?.description || 'Попробуй другой ход!';
-    TutorialOverlay.showWrongMove(message);
+    TutorialOverlay.showWrongMove(
+      this.currentTutorial?.targetAction?.description || 'Попробуй другой ход!'
+    );
     this.lastInteractionTime = Date.now();
   },
 
   handleCorrectMove(x, y) {
-    console.log('✅ Correct move!');
-    if (this.currentTutorial && typeof TutorialAnalytics !== 'undefined') {
-      TutorialAnalytics.track('correct_move', { tutorialId: this.currentTutorial.id });
-    }
     this.lastInteractionTime = Date.now();
     setTimeout(() => {
       if (this.isActive) this.complete();
@@ -299,13 +278,10 @@ const TutorialManager = {
     if (!this.isActive || !this.currentTutorial) return;
 
     const tutorialId = this.currentTutorial.id;
-    console.log(`🎉 Tutorial "${tutorialId}" completed!`);
+    console.log(`🎉 Completed: "${tutorialId}"`);
 
     TutorialStorage.updateTimeSpent(tutorialId);
     TutorialStorage.markCompleted(tutorialId);
-    if (typeof TutorialAnalytics !== 'undefined') {
-      TutorialAnalytics.track('tutorial_completed', { tutorialId });
-    }
 
     const reward = TutorialStorage.claimReward(tutorialId);
     if (reward && reward.coins) {
@@ -319,11 +295,7 @@ const TutorialManager = {
 
   skipCurrent() {
     if (!this.currentTutorial) return;
-    console.log(`⏭️ Skipping "${this.currentTutorial.id}"`);
     TutorialStorage.markSkipped(this.currentTutorial.id);
-    if (typeof TutorialAnalytics !== 'undefined') {
-      TutorialAnalytics.track('tutorial_skipped', { tutorialId: this.currentTutorial.id });
-    }
     this.cleanup();
   },
 
@@ -334,7 +306,7 @@ const TutorialManager = {
       <div class="reward-content">
         <div class="reward-icon">🎁</div>
         <h3>Обучение пройдено!</h3>
-        <p>Награда: +${reward.coins} 💰</p>
+        <p>+${reward.coins} 💰</p>
         <button class="tutorial-btn" onclick="this.closest('.tutorial-reward-popup').remove()">Отлично!</button>
       </div>
     `;
@@ -343,7 +315,7 @@ const TutorialManager = {
   },
 
   cleanup() {
-    console.log('🧹 Cleaning up...');
+    console.log('🧹 Cleanup');
 
     TutorialOverlay.hide();
     GhostHand.hide();
@@ -351,7 +323,6 @@ const TutorialManager = {
     this.clearAllTimers();
 
     this.waitingForCorrectMove = false;
-    this.inputLocked = false;
     this.isActive = false;
     gameLocked = false;
     isAnimating = false;
@@ -378,39 +349,22 @@ const TutorialManager = {
     this.expectedCombo = null;
     this.expectedSpecial = null;
 
-    setTimeout(() => {
-      gameLocked = false;
-      isAnimating = false;
-      selected = null;
-      clearHighlight();
-    }, 1000);
-
-    if (!levelFinished && typeof initLevel === 'function') {
-      setTimeout(() => {
-        if (!this.isActive) initLevel();
-      }, 400);
+    // Перезапускаем уровень
+    if (typeof currentLevel !== 'undefined' && !levelFinished && typeof initLevel === 'function') {
+      setTimeout(() => initLevel(), 400);
     }
 
-    console.log('✅ Cleanup complete');
-  },
-
-  saveGameState() {
-    this.originalGameLocked = gameLocked || false;
-    this.originalIsAnimating = isAnimating || false;
+    console.log('✅ Cleanup done');
   },
 
   startHintTimers() {
     this.clearAllTimers();
-
     this.hintTimer = setTimeout(() => {
       if (this.isActive) {
-        const highlightedCells = TutorialOverlay.highlightCells;
-        if (highlightedCells) {
-          highlightedCells.forEach(c => { if (c) c.style.animation = 'tutorialPulseFast 1s ease-in-out infinite'; });
-        }
+        const hc = TutorialOverlay.highlightCells;
+        if (hc) hc.forEach(c => { if (c) c.style.animation = 'tutorialPulseFast 1s ease-in-out infinite'; });
       }
     }, this.config.hintDelay);
-
     this.secondHintTimer = setTimeout(() => {
       if (this.isActive && this.currentTutorial?.targetAction?.description) {
         TutorialOverlay.showWrongMove(this.currentTutorial.targetAction.description);
@@ -421,13 +375,9 @@ const TutorialManager = {
   scheduleGhostHand() {
     this.ghostHandTimer = setTimeout(() => {
       if (this.isActive && this.waitingForCorrectMove) {
-        const target = this.expectedAction || this.currentTutorial?.targetAction;
-        if (target?.from && target?.to) {
-          GhostHand.startRepeat(
-            target.from.x, target.from.y,
-            target.to.x, target.to.y,
-            this.config.ghostHandRepeat
-          );
+        const t = this.expectedAction || this.currentTutorial?.targetAction;
+        if (t?.from && t?.to) {
+          GhostHand.startRepeat(t.from.x, t.from.y, t.to.x, t.to.y, this.config.ghostHandRepeat);
         }
       }
     }, this.config.ghostHandDelay);
@@ -435,19 +385,11 @@ const TutorialManager = {
 
   startInactivityTimer() {
     this.inactivityTimer = setInterval(() => {
-      if (!this.isActive) {
-        clearInterval(this.inactivityTimer);
-        this.inactivityTimer = null;
-        return;
-      }
+      if (!this.isActive) { clearInterval(this.inactivityTimer); return; }
       if (Date.now() - this.lastInteractionTime >= this.config.ghostHandDelay && !GhostHand.isShowing) {
-        const target = this.expectedAction || this.currentTutorial?.targetAction;
-        if (target?.from && target?.to) {
-          GhostHand.startRepeat(
-            target.from.x, target.from.y,
-            target.to.x, target.to.y,
-            this.config.ghostHandRepeat
-          );
+        const t = this.expectedAction || this.currentTutorial?.targetAction;
+        if (t?.from && t?.to) {
+          GhostHand.startRepeat(t.from.x, t.from.y, t.to.x, t.to.y, this.config.ghostHandRepeat);
         }
       }
     }, 1000);
@@ -458,13 +400,17 @@ const TutorialManager = {
     clearTimeout(this.secondHintTimer);
     clearTimeout(this.ghostHandTimer);
     clearInterval(this.inactivityTimer);
-    this.hintTimer = null;
-    this.secondHintTimer = null;
-    this.ghostHandTimer = null;
-    this.inactivityTimer = null;
+    this.hintTimer = this.secondHintTimer = this.ghostHandTimer = this.inactivityTimer = null;
   },
 
+  // ================= ТРИГГЕР УРОВНЯ =================
   checkLevelTriggers() {
+    // Не запускаем если не на игровом экране
+    if (!document.getElementById("board") || !cells || cells.length === 0) {
+      console.log('🎓 Not on game screen — skipping level trigger');
+      return false;
+    }
+
     const levelTutorials = {
       1: 'basic_swipe', 2: 'create_rocket', 3: 'create_bomb',
       4: 'create_rainbow', 5: 'rocket_rocket', 6: 'rocket_bomb',
@@ -474,17 +420,41 @@ const TutorialManager = {
 
     const tutorialId = levelTutorials[currentLevel];
     if (!tutorialId) return false;
-    if (!TutorialStorage.shouldShow(tutorialId)) return false;
+    if (!TutorialStorage.shouldShow(tutorialId)) {
+      console.log(`🎓 "${tutorialId}" already completed`);
+      return false;
+    }
 
-    console.log(`🎯 Level ${currentLevel} triggers tutorial: "${tutorialId}"`);
-    setTimeout(() => this.start(tutorialId), 300);
+    console.log(`🎯 Level ${currentLevel} → "${tutorialId}"`);
+    setTimeout(() => this.start(tutorialId), 500);
     return true;
   },
 
+  // ================= КНОПКИ МЕНЮ =================
   replay(tutorialId) {
+    // Если мы в меню — сначала переходим на игровой экран
+    if (!document.getElementById("board") || !cells || cells.length === 0) {
+      console.log('🎓 In menu — navigating to game first');
+      if (typeof goTo === 'function') {
+        goTo('game');
+      }
+      // Запускаем туториал после загрузки уровня
+      setTimeout(() => {
+        if (typeof initLevel === 'function') {
+          initLevel();
+        }
+        setTimeout(() => {
+          TutorialStorage.resetOne(tutorialId);
+          this.start(tutorialId);
+        }, 600);
+      }, 300);
+      return;
+    }
+
+    // Мы на игровом экране
     TutorialStorage.resetOne(tutorialId);
     if (typeof hidePopup === 'function') hidePopup();
-    setTimeout(() => this.start(tutorialId), 500);
+    setTimeout(() => this.start(tutorialId), 300);
   },
 
   resetAll() {
@@ -498,21 +468,14 @@ const TutorialManager = {
       id: t.id, title: t.title, description: t.description,
       icon: t.icon, completed: !TutorialStorage.shouldShow(t.id)
     }));
-  },
-
-  getStatus(tutorialId) {
-    return {
-      completed: TutorialStorage.getData().completed[tutorialId] || false,
-      skipped: TutorialStorage.getData().skipped[tutorialId] || false,
-      canReplay: true
-    };
   }
 };
 
+// Инициализация
 window.addEventListener('load', () => {
   setTimeout(() => {
     if (typeof TutorialStorage === 'undefined') {
-      console.error('❌ TutorialStorage not loaded');
+      console.error('❌ TutorialStorage missing');
       return;
     }
     TutorialManager.init();
@@ -520,4 +483,4 @@ window.addEventListener('load', () => {
 });
 
 window.TutorialManager = TutorialManager;
-console.log('🎓 TutorialManager: Module loaded');
+console.log('🎓 TutorialManager v5 loaded');
